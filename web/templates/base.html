@@ -85,6 +85,32 @@
   .prose td, .prose th { text-align: left; white-space: normal; min-width: 64px; }
   .prose a { color: var(--accent); }
   .prose blockquote { margin: 0; padding: 4px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+  .nform { display: flex; flex-direction: column; gap: 6px; }
+  .nform .nrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .nform input, .nform select, .nform textarea, .nform button { font: inherit; font-size: 14px; padding: 6px 10px;
+        border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .nform textarea { width: 100%; min-height: 90px; line-height: 1.55; resize: vertical; }
+  .nform .tk { width: 9em; text-transform: uppercase; } .nform .grow { flex: 1; min-width: 10em; }
+  .nform button { background: var(--ink); color: var(--bg); border-color: var(--ink); cursor: pointer; }
+  .nform button:disabled { opacity: .4; }
+  a.chipbtn { text-decoration: none; }
+  .nerr { color: var(--down); font-size: 13px; margin-bottom: 6px; }
+  .nundo form { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .nfilter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+  .nfilter a { padding: 3px 11px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; color: var(--ink); font-size: 13px; }
+  .nfilter a.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .nfilter .sp, .nhead .sp { flex: 1; }
+  .nfilter select { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .note { border-top: 1px solid var(--line); padding: 10px 0; }
+  .nhead { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 14px; }
+  .nhead form { display: inline; } .nhead a.ntk { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .chipbtn.del:hover { color: var(--down); border-color: var(--down); }
+  .note .prose { font-size: 14px; margin-top: 4px; } .note .prose p { margin: 4px 0; }
+  a.nsrc { color: var(--accent); overflow-wrap: anywhere; }
+  .nmini { font-size: 13px; margin-top: 6px; } .nmini div { padding: 2px 0; overflow-wrap: anywhere; }
+  .nmini a { color: var(--accent); text-decoration: none; }
+  .mynote { border-left: 3px solid var(--line); padding: 2px 10px; margin: 6px 0; font-size: 14px; }
+  .mynote .prose p { margin: 3px 0; }
   #side, .gut { display: none; }
   @media (min-width: 1100px) {
     #side { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; width: var(--side-w, 170px);
@@ -178,7 +204,7 @@
 </style>
 </head>
 {% macro navlinks() %}
-    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('reports','周报','/reports')] + ledger_nav|default([]) %}
+    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports')] + ledger_nav|default([]) %}
     <a href="{{ href }}" class="{{ 'on' if active == key else '' }}">{{ label }}</a>
     {% endfor %}
 {% endmacro %}
@@ -311,6 +337,48 @@
     save(); render(); send.disabled = false;
   };
   render();
+})();
+</script>
+<div id="selstat" role="status" aria-live="polite" hidden></div>
+<style>
+  #selstat { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 50;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    display: flex; gap: 12px; white-space: nowrap; max-width: calc(100vw - 32px); overflow-x: auto; }
+  #selstat[hidden] { display: none; }
+  #selstat b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #selstat span { color: var(--muted); }
+</style>
+<script>
+(() => {
+  // Excel-style status bar: select ≥2 numbers anywhere → count / mean / median / min / max / sum.
+  const box = document.getElementById("selstat");
+  const NUM = /(?<![\d.,])([-−–]?)(\d{1,3}(?:,\d{3})+(?!\d)|\d+)(\.\d+)?(\s*%)?/g;
+  const fmt = (v, pct) => {
+    const a = Math.abs(v), d = a >= 1000 ? 0 : a >= 100 ? 1 : 2;
+    return v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: d }) + (pct ? "%" : "");
+  };
+  let t;
+  const update = () => {
+    const sel = document.getSelection(), txt = sel && !sel.isCollapsed ? sel.toString() : "";
+    if (!txt || box.contains(sel.anchorNode)) { box.hidden = true; return; }
+    const xs = [], pcts = [];
+    for (const m of txt.matchAll(NUM)) {
+      xs.push((m[1] ? -1 : 1) * parseFloat(m[2].replace(/,/g, "") + (m[3] || "")));
+      pcts.push(!!m[4]);
+    }
+    if (xs.length < 2) { box.hidden = true; return; }
+    const pct = pcts.every(Boolean), s = [...xs].sort((a, b) => a - b), n = xs.length;
+    const sum = xs.reduce((a, b) => a + b, 0);
+    const med = n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+    const cells = [["个数", n], ["平均", fmt(sum / n, pct)], ["中位数", fmt(med, pct)],
+                   ["最小", fmt(s[0], pct)], ["最大", fmt(s[n - 1], pct)]];
+    if (!pct) cells.push(["合计", fmt(sum, false)]);
+    box.replaceChildren(...cells.map(([k, v]) => { const e = document.createElement("span");
+      const b = document.createElement("b"); b.textContent = v; e.append(k + " ", b); return e; }));
+    box.hidden = false;
+  };
+  document.addEventListener("selectionchange", () => { clearTimeout(t); t = setTimeout(update, 120); });
 })();
 </script>
 </body>

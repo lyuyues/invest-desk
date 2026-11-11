@@ -160,6 +160,20 @@ CREATE TABLE IF NOT EXISTS candidates (
     detail TEXT NOT NULL,         -- JSON object
     PRIMARY KEY (run_date, ticker)
 );
+-- Personal notes (/notes): things learned, thoughts on earnings reports / news. Soft-deleted.
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY,
+    created TEXT NOT NULL,
+    updated TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('学习', '财报', '新闻', '其他')),
+    ticker TEXT,
+    title TEXT,
+    body TEXT NOT NULL,           -- markdown
+    source_url TEXT,
+    earnings_date TEXT,           -- with ticker → the earnings report (earnings / earnings_notes) it is about
+    deleted TEXT
+);
+CREATE INDEX IF NOT EXISTS notes_ticker ON notes (ticker, created);
 CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL,

@@ -11,7 +11,7 @@ import os
 import shlex
 import sqlite3
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from radar import views, weekly
@@ -61,6 +61,10 @@ def page_context(conn: sqlite3.Connection, page: str) -> str:
         L += [f"- 内部人 {r['tx_date']} {r['owner']}（{r['title'] or ''}）{r['code']} {r['shares'] or 0:,.0f} 股 "
               f"@ {r['price'] or 0:.2f}" for r in ev["insiders"]]
         L += [f"- 财报 {r['date']}：EPS 实际 {r['eps_actual']} / 预期 {r['eps_est']}" for r in ev["earnings"]]
+        from radar import notes
+        mine = notes.for_prompt(conn, datetime.now(timezone.utc), days=365, per_ticker=10, ticker=t)
+        if mine:
+            L += [f"用户关于 {t} 的笔记（近一年）："] + mine
         return "\n".join(L)
     if page == "/earnings":
         cfg_t = [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]
@@ -89,6 +93,10 @@ def page_context(conn: sqlite3.Connection, page: str) -> str:
                      f"上涨空间 {r['upside'] and round(r['upside'])}%" + (
                 f"；自动假设 rr {a['rr']:.1%} 永续 {a['terminal']:.1%} FCF 利润率 {a['fcf_margin']:.1%} 分析师收入 {a['analyst']} 起始增长 {a['g_start']:.1%}；我的 {v['mine']}" if a else f"；{r['error']}"))
         return "\n".join(L)
+    if page == "/notes":
+        from radar import notes
+        mine = notes.for_prompt(conn, datetime.now(timezone.utc), days=365, total=40)
+        return "用户正在看「笔记」页（用户自己记的学习心得 / 财报与新闻想法）。最近的笔记：\n" + ("\n".join(mine) or "- 还没有笔记")
     if page == "/theses":
         from radar import theses
         return "用户正在看「投资逻辑」页：\n" + "\n\n".join(theses.for_prompt(conn, [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]))

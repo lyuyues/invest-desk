@@ -124,6 +124,10 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime) -> str:
         who = f"{p.get('name_zh') or p.get('name') or ''}，{p.get('desc_zh') or ''}".strip("，")
         L.append(f"- {c['ticker']}{('（' + who + '）') if who else ''}（{c['score']:.1f}，{'+'.join(c['channels'])}）：{notes[:200]}")
 
+    from radar import notes
+    L += ["", "## 用户笔记（仪表盘「笔记」页，近 90 天；用户自己记的学习心得 / 财报与新闻想法，引用时可说「你之前记过……」）"]
+    L += notes.for_prompt(conn, now) or ["- 无"]
+
     from radar import theses
     L += ["", "## Thesis 摘要（仪表盘「逻辑」页）"] + (theses.for_prompt(conn, cfg.all_tickers) or ["- 无"])
     if cfg.theses_dir:

@@ -132,7 +132,7 @@ def home(request: Request):
 
 
 
-TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-^=]{0,14}$")
+from radar.notes import TICKER_RE  # noqa: E402  (shared with the notes form)
 
 
 async def _form(request: Request) -> dict[str, str]:
@@ -336,11 +336,15 @@ def earnings_page(request: Request):
     cfg, conn = _ctx()
     try:
         board = views.earnings_board(conn, cfg.all_tickers, datetime.now(timezone.utc))
+        from radar import notes
+        rnotes, ncount = notes.by_report(conn), notes.counts_by_ticker(conn)
     finally:
         conn.close()
     for r in board["recent"]:
         if r["note"]:
             r["note"] = {**r["note"], "html": _md(r["note"]["markdown"])}
+        r["mine"] = [_note_view(n, cfg.tz) for n in rnotes.get((r["ticker"], r["date"]), [])]
+        r["ncount"] = ncount.get(r["ticker"], 0)
     dated = {e["ticker"] for e in board["upcoming"]}
     return _render(request, "earnings.html", {**board, "holdings": set(cfg.holdings),
                                               "undated": [t for t in cfg.all_tickers if t not in dated]}, "earnings")
@@ -354,13 +358,17 @@ def theses_page(request: Request):
     try:
         theses.seed(conn, cfg.all_tickers, datetime.now(timezone.utc))
         th = theses.all_theses(conn)
+        from radar import notes
+        recent, ncount = notes.recent_by_ticker(conn, cfg.all_tickers), notes.counts_by_ticker(conn)
     finally:
         conn.close()
     order = [theses.GENERAL, *cfg.holdings, *[t for t in cfg.watchlist if t not in cfg.holdings]]
     items = [{"ticker": t, "name": "总体原则" if t == theses.GENERAL else t,
               "tier": "" if t == theses.GENERAL else ("持仓" if t in cfg.holdings else "关注"),
               "body": th[t]["body"], "is_default": th[t]["is_default"],
-              "updated": local_time(th[t]["updated"], cfg.tz)} for t in order if t in th]
+              "updated": local_time(th[t]["updated"], cfg.tz),
+              "notes": [_note_view(n, cfg.tz) for n in recent.get(t, [])], "ncount": ncount.get(t, 0)}
+             for t in order if t in th]
     return _render(request, "theses.html", {"items": items}, "theses")
 
 
@@ -381,6 +389,119 @@ async def thesis_save(request: Request, ticker: str):
     if not back.startswith("/") or back.startswith("//"):
         back = "/theses"
     return RedirectResponse(f"{back}#th-{ticker}" if back == "/theses" else back, status_code=303)
+
+
+def _safe_back(back: str | None, default: str) -> str:
+    return back if back and back.startswith("/") and not back.startswith("//") else default
+
+
+def _note_view(r, tz: str) -> dict:
+    from radar import notes
+    return {**dict(r), "when": local_time(r["created"], tz), "edited": r["updated"] != r["created"],
+            "snippet": notes.snippet(r["body"]), "html": _md(r["body"])}
+
+
+def _notes_page(request: Request, ticker: str = "", kind: str = "", edit: int | None = None,
+                form: dict | None = None, error: str = "", deleted: int | None = None, status: int = 200):
+    from radar import notes
+
+    ticker = ticker.strip().upper()
+    kind = kind if kind in notes.KINDS else ""
+    cfg, conn = _ctx()
+    try:
+        rows = notes.list_notes(conn, ticker=ticker or None, kind=kind or None)
+        ncount = notes.counts_by_ticker(conn)
+    finally:
+        conn.close()
+    from urllib.parse import urlencode
+    qs = urlencode({k: v for k, v in (("ticker", ticker), ("kind", kind)) if v})
+    here = "/notes" + ("?" + qs if qs else "")
+    views_ = [_note_view(r, cfg.tz) for r in rows]
+    for v in views_:
+        if v["id"] == edit:
+            v["form"] = {**v, "back": here, **(form or {})}
+    resp = _render(request, "notes.html", {
+        "rows": views_, "kinds": notes.KINDS, "ticker": ticker, "kind": kind, "here": here,
+        "edit": edit, "f": form or {}, "error": error, "deleted": deleted,
+        "tickers": sorted(set(cfg.all_tickers) | set(ncount)), "ncount": ncount}, "notes")
+    resp.status_code = status
+    return resp
+
+
+@app.get("/notes", response_class=HTMLResponse)
+def notes_page(request: Request, ticker: str = "", kind: str = "", edit: int | None = None,
+               new: int = 0, ref: str = "", back: str = "", deleted: int | None = None):
+    """List + quick add. ?new=1&ticker=X&kind=财报&ref=DATE&back=… prefills the form (「记一条」 on 财报)."""
+    form = {"ticker": ticker.upper(), "kind": kind, "earnings_date": ref, "back": _safe_back(back, "")} if new else None
+    return _notes_page(request, ticker, "" if new else kind, edit, form, deleted=deleted)
+
+
+def _note_fields(f: dict) -> dict:
+    return {k: f.get(k, "") for k in ("kind", "body", "ticker", "title", "source_url", "earnings_date")}
+
+
+@app.post("/notes")
+async def note_add(request: Request):
+    from radar import notes
+
+    f = await _form(request)
+    cfg, conn = _ctx()
+    try:
+        try:
+            nid = notes.add(conn, datetime.now(timezone.utc), **_note_fields(f))
+        except ValueError as e:
+            return _notes_page(request, form=f, error=str(e), status=400)
+    finally:
+        conn.close()
+    return RedirectResponse(_safe_back(f.get("back"), f"/notes#n-{nid}"), status_code=303)
+
+
+@app.post("/notes/{nid}")
+async def note_edit(request: Request, nid: int):
+    from radar import notes
+
+    f = await _form(request)
+    cfg, conn = _ctx()
+    try:
+        try:
+            ok = notes.update(conn, nid, datetime.now(timezone.utc), **_note_fields(f))
+        except ValueError as e:
+            return _notes_page(request, edit=nid, form=f, error=str(e), status=400)
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(404)
+    return RedirectResponse(_safe_back(f.get("back"), "/notes") + f"#n-{nid}", status_code=303)
+
+
+@app.post("/notes/{nid}/delete")
+async def note_delete(request: Request, nid: int):
+    from radar import notes
+
+    f = await _form(request)
+    cfg, conn = _ctx()
+    try:
+        ok = notes.delete(conn, nid, datetime.now(timezone.utc))
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(404)
+    back = _safe_back(f.get("back"), "/notes")
+    return RedirectResponse(back + ("&" if "?" in back else "?") + f"deleted={nid}", status_code=303)
+
+
+@app.post("/notes/{nid}/restore")
+async def note_restore(nid: int):
+    from radar import notes
+
+    cfg, conn = _ctx()
+    try:
+        ok = notes.restore(conn, nid)
+    finally:
+        conn.close()
+    if not ok:
+        raise HTTPException(404)
+    return RedirectResponse(f"/notes#n-{nid}", status_code=303)
 
 
 @app.get("/valuation", response_class=HTMLResponse)

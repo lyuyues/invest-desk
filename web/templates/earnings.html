@@ -45,7 +45,10 @@
       <summary>{% if e.note.level %}<span class="chip lvl-{{ e.note.level }}">重要度 {{ e.note.level }}</span>{% endif %}
         {% for t in e.note.tags %}<span class="chip tag">{{ t }}</span>{% endfor %}<span class="muted"> 摘要</span></summary>
       <div class="prose">{{ e.note.html }}</div></details>
-      {% else %}<span class="muted">摘要待生成（每天收盘后自动补，最新的优先）</span>{% endif %}</td></tr>
+      {% else %}<span class="muted">摘要待生成（每天收盘后自动补，最新的优先）</span>{% endif %}
+      {% for n in e.mine %}<div class="mynote"><span class="muted">我的笔记 · {{ n.when }}{% if n.title %} · {{ n.title }}{% endif %}</span><div class="prose">{{ n.html }}</div></div>{% endfor %}
+      <div class="nmini"><a href="/notes?new=1&ticker={{ e.ticker|urlencode }}&kind={{ '财报'|urlencode }}&ref={{ e.date }}&back={{ ('/earnings#e-' ~ e.ticker ~ '-' ~ e.date)|urlencode }}">记一条</a>
+        {% if e.ncount %}<span class="muted"> · </span><a href="/notes?ticker={{ e.ticker|urlencode }}">{{ e.ticker }} 全部笔记（{{ e.ncount }}）</a>{% endif %}</div></td></tr>
     {% endfor %}
   </table></div>
   <div class="muted" style="margin-top:6px">股价反应 = 财报日前一交易日收盘 → 财报次日收盘，同时覆盖盘前和盘后发布。</div>

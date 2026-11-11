@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}笔记 · Invest Radar{% endblock %}
+{% macro note_form(action, v, submit, cancel=none) %}
+<form method="post" action="{{ action }}" class="nform">
+  <div class="nrow">
+    <select name="kind">{% for k in kinds %}<option value="{{ k }}"{{ ' selected' if (v.kind or '学习') == k else '' }}>{{ k }}</option>{% endfor %}</select>
+    <input name="ticker" value="{{ v.ticker or '' }}" placeholder="标的（可空）" maxlength="15" autocapitalize="characters" autocomplete="off" class="tk">
+    <input name="title" value="{{ v.title or '' }}" placeholder="标题（可空）" maxlength="200" class="grow">
+  </div>
+  {% if v.earnings_date %}<div class="muted">关于 <a href="/earnings#e-{{ v.ticker }}-{{ v.earnings_date }}">{{ v.ticker }} {{ v.earnings_date }} 财报</a></div>{% endif %}
+  <input type="hidden" name="earnings_date" value="{{ v.earnings_date or '' }}">
+  <input type="hidden" name="back" value="{{ v.back or '' }}">
+  <textarea name="body" rows="4" required placeholder="记下学到的东西、财报里的一段话、自己的想法…（支持 Markdown；⌘/Ctrl+Enter 保存）">{{ v.body or '' }}</textarea>
+  <div class="nrow">
+    <input name="source_url" value="{{ v.source_url or '' }}" placeholder="来源链接（可空）" class="grow" inputmode="url">
+    {% if cancel %}<a href="{{ cancel }}" class="chipbtn">取消</a>{% endif %}
+    <button>{{ submit }}</button>
+  </div>
+</form>
+{% endmacro %}
+{% block content %}
+<section>
+  <h2>记一条</h2>
+  {% if error and not edit %}<div class="nerr">{{ error }}</div>{% endif %}
+  {{ note_form("/notes", f if not edit else {}, "保存") }}
+  <div class="muted" style="margin-top:6px">学到的新东西、财报原文和想法都记在这里，按时间累积。右侧助手和周报会参考最近 90 天的笔记。</div>
+</section>
+
+{% if deleted %}
+<section class="nundo"><form method="post" action="/notes/{{ deleted }}/restore">已删除一条笔记 <button class="chipbtn">撤销</button></form></section>
+{% endif %}
+
+<section>
+  <div class="nfilter">
+    {% set tq = 'ticker=' ~ (ticker|urlencode) ~ '&' if ticker else '' %}
+    <a href="/notes{{ '?ticker=' ~ (ticker|urlencode) if ticker else '' }}" class="{{ 'on' if not kind else '' }}">全部</a>
+    {% for k in kinds %}<a href="/notes?{{ tq }}kind={{ k|urlencode }}" class="{{ 'on' if kind == k else '' }}">{{ k }}</a>{% endfor %}
+    <span class="sp"></span>
+    <form method="get" action="/notes">
+      {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+      <select name="ticker" onchange="this.form.submit()">
+        <option value="">所有标的</option>
+        {% for t in tickers %}<option value="{{ t }}"{{ ' selected' if t == ticker else '' }}>{{ t }}{{ ' (' ~ ncount[t] ~ ')' if ncount.get(t) else '' }}</option>{% endfor %}
+        {% if ticker and ticker not in tickers %}<option value="{{ ticker }}" selected>{{ ticker }}</option>{% endif %}
+      </select>
+      <noscript><button class="chipbtn">筛选</button></noscript>
+    </form>
+  </div>
+  {% if rows %}
+  {% for n in rows %}
+  <div class="note" id="n-{{ n.id }}">
+    {% if edit == n.id %}
+      {% if error %}<div class="nerr">{{ error }}</div>{% endif %}
+      {{ note_form("/notes/" ~ n.id, n.form, "保存修改", here ~ "#n-" ~ n.id) }}
+    {% else %}
+    <div class="nhead">
+      <span class="chip">{{ n.kind }}</span>
+      {% if n.ticker %}<a href="/notes?ticker={{ n.ticker|urlencode }}" class="ntk">{{ n.ticker }}</a>{% endif %}
+      {% if n.earnings_date %}<a href="/earnings#e-{{ n.ticker }}-{{ n.earnings_date }}" class="muted">{{ n.earnings_date }} 财报</a>{% endif %}
+      {% if n.title %}<b>{{ n.title }}</b>{% endif %}
+      <span class="sp"></span>
+      <span class="muted">{{ n.when }}{{ ' · 已编辑' if n.edited else '' }}</span>
+      <a href="{{ here }}{{ '&' if '?' in here else '?' }}edit={{ n.id }}#n-{{ n.id }}" class="chipbtn">编辑</a>
+      <form method="post" action="/notes/{{ n.id }}/delete" onsubmit="return confirm('删除这条笔记？（删除后可在页面顶部撤销）')">
+        <input type="hidden" name="back" value="{{ here }}"><button class="chipbtn del">删除</button></form>
+    </div>
+    <div class="prose">{{ n.html }}</div>
+    {% if n.source_url %}<div class="muted"><a href="{{ n.source_url }}" target="_blank" rel="noopener" class="nsrc">{{ n.source_url }}</a></div>{% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}<div class="muted">{{ '没有符合筛选的笔记' if ticker or kind else '还没有笔记，从上面记第一条。' }}</div>{% endif %}
+</section>
+<script>
+document.querySelectorAll(".nform").forEach(f => {
+  const ta = f.querySelector("textarea");
+  const fit = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 2 + "px"; };
+  fit(); ta.addEventListener("input", fit);
+  ta.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") f.requestSubmit(); });
+  f.addEventListener("submit", () => f.querySelectorAll("button").forEach(b => b.disabled = true));
+});
+{% if f.earnings_date or edit %}(document.querySelector({{ (('#n-' ~ edit ~ ' textarea') if edit else '.nform textarea') | tojson }}) || {}).focus?.();{% endif %}
+</script>
+{% endblock %}

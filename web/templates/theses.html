@@ -18,6 +18,10 @@
     </div>
     <textarea name="body" rows="4">{{ it.body }}</textarea>
   </form>
+  {% if it.ticker != '_GENERAL' %}<div class="nmini">
+    {% for n in it.notes %}<div><span class="muted">{{ n.when }} · {{ n.kind }}</span> <a href="/notes?ticker={{ it.ticker|urlencode }}#n-{{ n.id }}">{{ n.title or n.snippet }}</a></div>{% endfor %}
+    {% if it.ncount %}<a href="/notes?ticker={{ it.ticker|urlencode }}">全部笔记（{{ it.ncount }}）</a><span class="muted"> · </span>{% endif %}<a href="/notes?new=1&ticker={{ it.ticker|urlencode }}&back={{ ('/theses#th-' ~ it.ticker)|urlencode }}">记一条</a>
+  </div>{% endif %}
 </section>
 {% endfor %}
 <script>
