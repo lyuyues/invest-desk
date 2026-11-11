@@ -12,7 +12,7 @@ NOW = datetime(2026, 11, 10, 14, 25, tzinfo=timezone.utc)  # 09:25 New York
 
 def cfg():
     return SimpleNamespace(all_tickers=["MSFT", "AMAT"], tier_of=lambda t: "holdings" if t == "MSFT" else "watchlist",
-                           tz="America/Los_Angeles")
+                           tz="America/Los_Angeles", macro={})
 
 
 def fake_factory(infos):

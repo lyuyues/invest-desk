@@ -30,20 +30,46 @@
 </section>
 
 <section>
-  <h2>宏观实际值（FRED，滞后）</h2>
+  <h2>经济数据预期 <span class="chip">Kalshi</span></h2>
+  {% if econ %}
   <div class="scroll"><table>
-    <tr><th>指标</th><th>最新</th><th>周变化</th><th>走势</th></tr>
-    {% for m in table %}
-    <tr><td>{{ m.label }}<div class="muted">{{ m.date or '' }}</div></td>
-      {% if m.value is none %}<td colspan="3" class="muted">暂无</td>{% else %}
-      <td>{{ '%.2f' % m.value }}{% if m.yoy is not none %}<div class="muted">同比 {{ '%.1f' % m.yoy }}%</div>{% endif %}</td>
-      <td>{{ '%+.2f' % m.change if m.change is not none else '—' }}</td>
+    <tr><th>合约</th><th>市场隐含</th><th>24h 变化</th><th>结算</th></tr>
+    {% for e in econ %}
+    <tr><td style="white-space:normal">{{ e.label }}<div class="muted">{{ e.event }}</div></td>
+      {% if e.kind == 'ladder' %}
+      <td>{{ '%.2f%%' % e.implied if e.implied is not none else '—' }}{% if e.median_above is not none %}<div class="muted">≥50% 概率高于 {{ '%g' % e.median_above }}%</div>{% endif %}</td>
+      <td>{{ '%+.2fpp' % (e.implied - e.implied_before) if e.implied is not none and e.implied_before is not none else '—' }}</td>
+      {% else %}
+      <td>{{ '%.0f%%' % (e.prob * 100) }}<div class="muted">{{ e.market }}</div></td>
+      <td>{{ '%+.0fpp' % ((e.prob - e.prob_before) * 100) if e.prob_before is not none else '—' }}</td>
+      {% endif %}
+      <td>{{ e.close or '—' }}</td></tr>
+    {% endfor %}
+  </table></div>
+  <div class="muted" style="margin-top:6px">阶梯合约（“高于 X%”）的隐含值 = 各档概率的期望（与 Fed 隐含利率同一算法，近似值）；单个是/否合约显示概率。</div>
+  {% else %}<div class="muted">还没有数据（运行 markets 任务）</div>{% endif %}
+</section>
+
+{% for gname, rows in groups %}
+<section>
+  <h2>{{ gname }} <span class="chip">FRED</span></h2>
+  <div class="scroll"><table>
+    <tr><th>指标</th><th>最新</th><th>较上期</th><th>周变化</th><th>走势</th></tr>
+    {% for m in rows %}
+    <tr><td style="white-space:normal">{{ m.label }}<div class="muted">{{ m.series }}{% if m.date %} · {{ m.date }}{% endif %}{% if m.freq %} · {{ m.freq }}{% endif %}</div></td>
+      {% if m.value is none %}<td colspan="4" class="muted">暂无</td>{% else %}
+      <td>{{ m.value|num }}{% if m.yoy is not none %}<div class="muted">同比 {{ '%.1f' % m.yoy }}%</div>{% endif %}</td>
+      <td>{{ m.prev_change|num(true, m.value) }}{% if m.prev_date %}<div class="muted">vs {{ m.prev_date }}</div>{% endif %}</td>
+      <td>{{ m.change|num(true, m.value) if m.freq in ('日', '周') else '—' }}</td>
       <td style="width:120px">{% if m.spark %}<svg viewBox="-1 -2 122 32" aria-hidden="true"><polyline points="{{ m.spark }}" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>{% endif %}</td>
       {% endif %}
     </tr>
     {% endfor %}
   </table></div>
+  {% if gname == 'Nowcast' %}<div class="muted" style="margin-top:6px">GDPNow 是当季 GDP 增速（年化）的实时估计，同一季度内随数据发布不断修订；“较上期”= 较上一季度的最终估计。</div>{% endif %}
+  {% if gname == '金融条件' %}<div class="muted" style="margin-top:6px">NFCI / 圣路易斯金融压力指数：0 = 历史平均，正值 = 比平均更紧 / 压力更大。</div>{% endif %}
 </section>
+{% endfor %}
 
 {% for title, ms in poly %}
 <section>

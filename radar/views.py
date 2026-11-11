@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from radar.collectors.macro import implied_rate
 from radar.db import _ts
 
-_STRIKE = re.compile(r"-T(\d+(?:\.\d+)?)$")
+_STRIKE = re.compile(r"-T(-?\d+(?:\.\d+)?)$")
 
 
 def latest_markets(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -28,7 +28,7 @@ def market_changes(conn: sqlite3.Connection, now: datetime, days: float = 7) -> 
             "SELECT prob FROM predictions WHERE source=? AND market_id=? AND ts<=? ORDER BY ts DESC LIMIT 1",
             (m["source"], m["market_id"], cutoff)).fetchone()
         before = row["prob"] if row else None
-        out.append({"source": m["source"], "event": m["event_title"], "label": m["label"], "prob": m["prob"],
+        out.append({"source": m["source"], "market_id": m["market_id"], "event_id": m["event_id"], "event": m["event_title"], "label": m["label"], "prob": m["prob"],
                     "before": before, "delta_pp": (m["prob"] - before) * 100 if before is not None else None})
     return sorted(out, key=lambda r: -abs(r["delta_pp"] or 0))
 
@@ -72,6 +72,85 @@ def fed_path(conn: sqlite3.Connection, now: datetime) -> list[dict]:
     return out
 
 
+def is_econ_ladder(c: dict, series_cfg: list[dict]) -> bool:
+    """A strike of a Kalshi economy ladder (CPI / unemployment / GDP …): too many per event to list one by one."""
+    pre = tuple(f"{s['series']}-" for s in series_cfg if s["series"] != "KXFED")
+    return c["source"] == "kalshi" and bool(pre) and c["event_id"].startswith(pre) and bool(_STRIKE.search(c["market_id"]))
+
+
+def econ_markets(conn: sqlite3.Connection, series_cfg: list[dict], now: datetime, hours: float = 24) -> list[dict]:
+    """Open Kalshi economy events (CPI / unemployment / GDP / recession ...) other than KXFED.
+
+    "Above X" ladders → implied value (same discrete-step expectation as the Fed ladder) and the highest
+    strike the market still gives ≥50%; single yes/no markets → probability. `before` = snapshot ≥`hours` old."""
+    out = []
+    cutoff = _ts(now - timedelta(hours=hours))
+    for s in series_cfg:
+        if s["series"] == "KXFED":
+            continue
+        events = conn.execute(
+            "SELECT event_id, event_title, MAX(close_time) AS close FROM predictions WHERE source='kalshi' "
+            "AND (event_id=? OR event_id LIKE ?) GROUP BY event_id HAVING close IS NULL OR close>? ORDER BY close",
+            (s["series"], s["series"] + "-%", _ts(now))).fetchall()
+        for e in events:
+            cur = _ladder_snapshot(conn, e["event_id"])
+            if cur is None:
+                continue
+            before = _ladder_snapshot(conn, e["event_id"], cutoff)
+            row = {"series": s["series"], "label": s["label"], "event": e["event_title"],
+                   "close": e["close"][:10] if e["close"] else None}
+            if cur["strikes"]:
+                row.update(kind="ladder", implied=implied_rate(cur["strikes"]),
+                           implied_before=implied_rate(before["strikes"]) if before and before["strikes"] else None,
+                           median_above=max((x for x, p in cur["strikes"] if p >= 0.5), default=None))
+            else:
+                row.update(kind="binary", prob=cur["probs"][0][1], market=cur["probs"][0][0],
+                           prob_before=before["probs"][0][1] if before and before["probs"] else None)
+            out.append(row)
+    return out
+
+
+def _ladder_snapshot(conn, event_id: str, before_ts: str | None = None) -> dict | None:
+    q = "SELECT MAX(ts) AS ts FROM predictions WHERE source='kalshi' AND event_id=?"
+    args: list = [event_id]
+    if before_ts:
+        q += " AND ts<=?"
+        args.append(before_ts)
+    ts = conn.execute(q, args).fetchone()["ts"]
+    if not ts:
+        return None
+    rows = conn.execute("SELECT market_id, label, prob FROM predictions WHERE source='kalshi' AND event_id=? AND ts=?",
+                        (event_id, ts)).fetchall()
+    strikes = [(float(m.group(1)), r["prob"]) for r in rows if (m := _STRIKE.search(r["market_id"]))]
+    return {"ts": ts, "strikes": strikes if len(strikes) >= 2 else [],
+            "probs": [(r["label"], r["prob"]) for r in rows]}
+
+
+def _freq(dates: list[str]) -> str:
+    """Observation frequency from the median spacing of recent dates (newest first)."""
+    ds = [datetime.fromisoformat(d) for d in dates[:12]]
+    gaps = sorted((a - b).days for a, b in zip(ds, ds[1:]))
+    if not gaps:
+        return ""
+    g = gaps[len(gaps) // 2]
+    return "日" if g <= 4 else "周" if g <= 10 else "月" if g <= 45 else "季"
+
+
+def macro_groups(table: list[dict], groups: dict[str, list[str]]) -> list[tuple[str, list[dict]]]:
+    """Split macro_table rows into the configured groups (config order); leftovers go to「其他」."""
+    by = {m["series"]: m for m in table}
+    out, used = [], set()
+    for name, ids in (groups or {}).items():
+        rows = [by[i] for i in ids or [] if i in by and i not in used]
+        used.update(m["series"] for m in rows)
+        if rows:
+            out.append((name, rows))
+    rest = [m for m in table if m["series"] not in used]
+    if rest:
+        out.append(("其他" if out else "宏观实际值", rest))
+    return out
+
+
 def macro_table(conn: sqlite3.Connection, labels: dict[str, str], days: int = 7) -> list[dict]:
     out = []
     for series, label in labels.items():
@@ -89,6 +168,9 @@ def macro_table(conn: sqlite3.Connection, labels: dict[str, str], days: int = 7)
             yoy = (latest["value"] / year_ago["value"] - 1) * 100 if year_ago else None
         out.append({"series": series, "label": label, "date": latest["date"], "value": latest["value"],
                     "change": latest["value"] - prev["value"] if prev else None, "yoy": yoy,
+                    "prev_change": latest["value"] - rows[1]["value"] if len(rows) > 1 else None,
+                    "prev_date": rows[1]["date"] if len(rows) > 1 else None,
+                    "freq": _freq([r["date"] for r in rows]),
                     "history": [r["value"] for r in rows[:120]][::-1]})
     return out
 
@@ -168,3 +250,43 @@ def earnings_board(conn: sqlite3.Connection, tickers: list[str], today: datetime
     upcoming.sort(key=lambda r: r["date"])
     recent.sort(key=lambda r: r["date"], reverse=True)
     return {"upcoming": upcoming, "recent": recent}
+
+
+def econ_lines(econ: list[dict]) -> list[str]:
+    """econ_markets rows → bundle lines for Claude."""
+    out = []
+    for e in econ:
+        if e["kind"] == "ladder":
+            if e["implied"] is None:
+                continue
+            ch = f"，24h {e['implied'] - e['implied_before']:+.2f}pp" if e["implied_before"] is not None else ""
+            out.append(f"- {e['label']} · {e['event']}（结算 {e['close']}）：隐含 {e['implied']:.2f}%{ch}")
+        else:
+            ch = f"，24h {(e['prob'] - e['prob_before']) * 100:+.0f}pp" if e["prob_before"] is not None else ""
+            out.append(f"- {e['label']} · {e['event']}：{e['market']} 概率 {e['prob']:.0%}{ch}")
+    return out
+
+
+def fast_macro_lines(table: list[dict]) -> list[str]:
+    """Daily / weekly FRED series (not the monthly / quarterly ones) with their latest change."""
+    out = []
+    for m in table:
+        if m["value"] is None or m.get("freq") not in ("日", "周"):
+            continue
+        ch = f"{fmt_num(m['prev_change'], True, m['value'])}（vs {m['prev_date']}）" if m.get("prev_change") is not None else "—"
+        out.append(f"- {m['label']}（{m['series']}，{m['freq']}）：{fmt_num(m['value'])}（{m['date']}），较上期 {ch}")
+    return out
+
+
+def fmt_num(v, signed: bool = False, ref: float | None = None) -> str:
+    """Macro values, decimals chosen by magnitude of `ref` (default: v itself): thousands separators for big
+    numbers (jobless claims), 3 decimals for small indices (NFCI ≈ -0.46), else 2."""
+    if v is None:
+        return "—"
+    ref = v if ref is None else ref
+    sign = "+" if signed else ""
+    if abs(ref) >= 1000:
+        return f"{v:{sign},.0f}"
+    if abs(ref) < 1:
+        return f"{v:{sign}.3f}"
+    return f"{v:{sign}.2f}"

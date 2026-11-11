@@ -94,8 +94,9 @@ def prob_shift_fires(rules, shifts: list[dict]) -> list[Fire]:
     """shifts: {source, market_id, event_title, label, prob, prob_before}."""
     out = []
     for r in _rules(rules, "prob_shift"):
+        skip = tuple(f"{x}-" for x in r.get("exclude_series") or [])
         for s in shifts:
-            if s["prob_before"] is None:
+            if s["prob_before"] is None or (skip and s["market_id"].startswith(skip)):
                 continue
             delta = (s["prob"] - s["prob_before"]) * 100
             if abs(delta) < r["threshold_pp"]:
@@ -107,8 +108,12 @@ def prob_shift_fires(rules, shifts: list[dict]) -> list[Fire]:
     return out
 
 
+def _n(v: float) -> str:
+    return f"{v:,.0f}" if abs(v) >= 1000 else f"{v:g}"
+
+
 def macro_cross_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> list[Fire]:
-    """latest: series -> last two observations [(date, value), ...] oldest first."""
+    """latest: series -> recent observations [(date, value), ...] oldest first (only the last two are used)."""
     out = []
     for r in _rules(rules, "macro_cross"):
         obs = latest.get(r["series"]) or []
@@ -118,8 +123,53 @@ def macro_cross_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> list
         label = r.get("label", r["series"])
         if "above" in r and prev <= r["above"] < cur:
             out.append(Fire(f"{r['id']}:{d}", "MACRO", r["level"],
-                            f"{label} 升破 {r['above']}", f"{label} {prev} → {cur}（{d}）", once=True))
+                            f"{label} 升破 {_n(r['above'])}", f"{label} {_n(prev)} → {_n(cur)}（{d}）", once=True))
         if "below" in r and prev >= r["below"] > cur:
             out.append(Fire(f"{r['id']}:{d}", "MACRO", r["level"],
-                            f"{label} 跌破 {r['below']}", f"{label} {prev} → {cur}（{d}）", once=True))
+                            f"{label} 跌破 {_n(r['below'])}", f"{label} {_n(prev)} → {_n(cur)}（{d}）", once=True))
+    return out
+
+
+def macro_change_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> list[Fire]:
+    """Jumps in a FRED series. latest: series -> recent observations, oldest first.
+
+    Rule fields: series, label, level, direction (up | down | both, default both), and one of
+      vs: avg   window: N obs, pct: P   → latest vs the mean of the N observations before it, change ≥ P%
+      vs: days  days: D,       abs: A   → latest vs the last observation ≥ D days earlier, |change| ≥ A (units of the series)
+    avg rules fire once per new observation; days rules at most once per ISO week (a move on a daily series
+    stays "≥ A over D days" for several days in a row)."""
+    out = []
+    for r in _rules(rules, "macro_change"):
+        obs = latest.get(r["series"]) or []
+        if len(obs) < 2:
+            continue
+        d, cur = obs[-1]
+        label, direction = r.get("label", r["series"]), r.get("direction", "both")
+        if r.get("vs", "avg") == "avg":
+            window = obs[-1 - r.get("window", 4):-1]
+            if len(window) < r.get("window", 4):
+                continue
+            base = sum(v for _, v in window) / len(window)
+            if not base:
+                continue
+            delta = (cur / base - 1) * 100
+            if abs(delta) < r["pct"]:
+                continue
+            what, key = f"较前 {len(window)} 期均值 {_n(base)} {delta:+.0f}%", d
+        else:
+            cutoff = (date.fromisoformat(d) - timedelta(days=r.get("days", 7))).isoformat()
+            prior = [(pd, v) for pd, v in obs[:-1] if pd <= cutoff]
+            if not prior:
+                continue
+            pd, base = prior[-1]
+            delta = cur - base
+            if abs(delta) < r["abs"]:
+                continue
+            y, w, _ = date.fromisoformat(d).isocalendar()
+            what, key = f"{r.get('days', 7)} 天内 {delta:+.2f}（{pd} {_n(base)} → {_n(cur)}）", f"{y}-W{w:02d}"
+        if (direction == "up" and delta < 0) or (direction == "down" and delta > 0):
+            continue
+        arrow = "▲" if delta > 0 else "▼"
+        out.append(Fire(f"{r['id']}:{key}", "MACRO", r["level"], f"{label} {arrow} {_n(cur)}",
+                        f"{label} {_n(cur)}（{d}），{what}", once=True))
     return out

@@ -17,7 +17,9 @@
     <div>公允价值·自动<b id="fv-auto">—</b></div>
     <div>公允价值·当前假设<b id="fv-cur">—</b></div>
     <div>上涨空间<b id="upside">—</b></div>
+    <div>折现率（WACC）<b id="wacc-tile">—</b></div>
     <div>永续价值占比<b id="tshare">—</b></div>
+    <div>隐含退出 EV/EBITDA<b id="exit-ebitda">—</b></div>
   </div>
   {% endif %}
 </section>
@@ -25,9 +27,9 @@
 <section>
   <h2>假设 <span class="muted" id="state"></span></h2>
   <form id="vf" class="vform">
-    <label>必要回报率 %<input name="rr" type="number" step="0.1"></label>
+    <label>折现率 %<input name="rr" type="number" step="0.1"><small>自动 = 公司 WACC（见下方拆解）</small></label>
     <label>永续增长率 %<input name="terminal" type="number" step="0.1"></label>
-    <label>FCF 利润率 %<input name="fcf_margin" type="number" step="0.1"><small>自动 = 近 5 年 FCF/收入（去极值）</small></label>
+    <label>FCF 利润率 %<input name="fcf_margin" type="number" step="0.1"><small>公司口径：近 5 年 (经营现金流 − 资本开支)/收入，加回税后利息</small></label>
     <label>股数（百万）<input name="shares" type="number" step="1"></label>
     <label>第 1 年收入（百万）<input name="a0" type="number" step="1"><small>分析师一致预期</small></label>
     <label>第 2 年收入（百万）<input name="a1" type="number" step="1"><small>分析师一致预期</small></label>
@@ -43,8 +45,21 @@
   <h2>10 年预测</h2>
   <div class="scroll"><table id="proj"></table></div>
 </section>
+{% if v.wacc %}
 <section>
-  <h2>敏感性（公允价值；行 = 必要回报率，列 = 永续增长率；≥ 现价标绿）</h2>
+  <h2>WACC 拆解 <span class="muted" style="font-weight:400;font-size:12px">折现自由现金流（公司口径）用；估算，不构成建议</span></h2>
+  <div class="scroll"><table id="waccT"></table></div>
+  <div class="scroll" style="margin-top:8px"><table id="bridge"></table></div>
+  <div class="muted" id="wacc-notes" style="margin-top:6px"></div>
+</section>
+{% endif %}
+<section>
+  <h2>隐含退出倍数 <span class="muted" style="font-weight:400;font-size:12px">第 10 年终值 ÷ 第 10 年指标；“现在” = 市值 ÷ 最近一年年报</span></h2>
+  <div class="scroll"><table id="exitm"></table></div>
+  <div class="muted" id="exit-note" style="margin-top:6px"></div>
+</section>
+<section>
+  <h2>敏感性（公允价值；行 = 折现率，列 = 永续增长率；≥ 现价标绿）</h2>
   <div class="scroll"><table id="sens"></table></div>
 </section>
 <section>
@@ -60,6 +75,7 @@
 <section class="muted">引擎：{{ v.meta.get('Growth Model') }} · 行业 {{ v.meta.get('Sector') }} · 收入科目 {{ v.meta.get('Revenue Tag') }} · 货币 {{ v.meta.get('Currency') }}</section>
 <script>
 const AUTO = {{ v.auto | tojson }}, MINE = {{ mine | tojson }}, PRICE = {{ price | tojson }}, T = {{ ticker | tojson }};
+const W = {{ (v.wacc or none) | tojson }};
 const HIST = {{ v.hist | tojson }}, QTR = {{ v.quarterly | tojson }};
 const YEARS = 10, $ = s => document.querySelector(s), f = document.getElementById("vf");
 const pct = x => x == null ? "—" : (x * 100).toFixed(1) + "%";
@@ -67,7 +83,7 @@ const money = x => x == null ? "—" : Math.abs(x) >= 1e3 ? (x / 1e3).toFixed(1)
 
 function project(inp) {
   const rr = inp.rr, tg = inp.terminal;
-  if (!(rr > tg)) throw new Error("必要回报率必须大于永续增长率");
+  if (!(rr > tg)) throw new Error("折现率必须大于永续增长率");
   const an = (inp.analyst || []).filter(a => a), n = an.length;
   let growth;
   if (inp.use_path && inp.path) growth = inp.path.slice(0, YEARS);
@@ -82,7 +98,37 @@ function project(inp) {
   const fcf = rev.map(r => r * inp.fcf_margin), pv = fcf.map((x, i) => x / (1 + rr) ** (i + 1));
   const pvT = fcf[fcf.length - 1] * (1 + tg) / (rr - tg) / (1 + rr) ** fcf.length;
   const ev = pv.reduce((a, b) => a + b, 0) + pvT;
-  return { rev, growth, fcf, pv, pvT, ev, fair: inp.shares ? ev / inp.shares : null };
+  const tv = fcf[fcf.length - 1] * (1 + tg) / (rr - tg);  // value at the end of the last forecast year
+  const nd = inp.net_debt || 0, equity = ev - nd;           // EV → equity (net debt = debt − cash)
+  return { rev, growth, fcf, pv, pvT, ev, tv, nd, equity, fair: inp.shares ? equity / inp.shares : null };
+}
+
+// Implied exit multiples: the Gordon terminal value expressed as a multiple of the final forecast year.
+// The engine projects only revenue and FCF, so final-year EBITDA / net income = final revenue × the
+// average margin of the last 3 annual reports. No net-debt adjustment (same as the fair value).
+function histMargin(key) {
+  const R = HIST && HIST.rows || {}, rev = R["Revenue (M)"] || [], m = R[key] || [];
+  const xs = [];
+  for (let i = rev.length - 1; i >= 0 && xs.length < 3; i--) if (rev[i] > 0 && m[i] != null) xs.push(m[i] / rev[i]);
+  return xs.length ? { v: xs.reduce((a, b) => a + b, 0) / xs.length, n: xs.length } : null;
+}
+function lastHist(key) {
+  const R = HIST && HIST.rows || {}, a = R[key] || [];
+  for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return { v: a[i], year: HIST.cols[i] };
+  return null;
+}
+const EM = histMargin("EBITDA (M)"), NM = histMargin("Net Income (M)");
+const mult = (num, den) => den != null && den > 0 && num != null ? num / den : null;
+const fx = x => x == null ? "—" : x.toFixed(1) + "×";
+function exitMultiples(r, inp) {
+  const n = r.rev.length - 1, rev = r.rev[n], cap = PRICE && inp.shares ? PRICE * inp.shares : null;
+  const evNow = cap != null ? cap + (inp.net_debt || 0) : null, L = k => (lastHist(k) || {}).v;
+  return [
+    ["EV / EBITDA", mult(r.tv, EM ? rev * EM.v : null), mult(evNow, L("EBITDA (M)")), EM ? `EBITDA 利润率按近 ${EM.n} 年平均 ${pct(EM.v)}` : "没有 EBITDA 数据"],
+    ["EV / FCF", mult(r.tv, r.fcf[n]), mult(evNow, L("Free Cash Flow (M)")), `= (1 + 永续增长) ÷ (折现率 − 永续增长)`],
+    ["P / E（近似）", mult(r.tv - (inp.net_debt || 0), NM ? rev * NM.v : null), mult(cap, L("Net Income (M)")), NM ? `净利率按近 ${NM.n} 年平均 ${pct(NM.v)}；终值减今天的净负债` : "没有净利润数据"],
+    ["EV / 收入", mult(r.tv, rev), mult(evNow, L("Revenue (M)")), ""],
+  ];
 }
 const merged = mine => mine ? { ...AUTO, ...mine, use_path: false } : { ...AUTO, use_path: true };
 
@@ -104,6 +150,28 @@ function render(inp) {
   $("#fv-cur").textContent = r.fair == null ? "—" : r.fair.toFixed(2);
   if (PRICE && r.fair) { const u = (r.fair / PRICE - 1) * 100; $("#upside").innerHTML = `<span class="${u >= 0 ? "up" : "down"}">${u >= 0 ? "+" : ""}${u.toFixed(0)}%</span>`; }
   $("#tshare").textContent = pct(r.pvT / r.ev);
+  const xm = exitMultiples(r, inp), ly = lastHist("Revenue (M)");
+  $("#exit-ebitda").textContent = fx(xm[0][1]);
+  $("#exitm").innerHTML = `<tr><th></th><th>隐含退出（${AUTO.base_year + r.rev.length} 年）</th><th>现在${ly ? `（${ly.year} 年报）` : ""}</th><th></th></tr>`
+    + xm.map(([k, ex, now, note]) => `<tr><td>${k}</td><td><b>${fx(ex)}</b></td><td>${fx(now)}</td><td class="muted">${note}</td></tr>`).join("");
+  $("#exit-note").textContent = "终值是企业价值口径（WACC 折现公司自由现金流）；“现在”的 EV = 市值 + 净负债。退出倍数明显高于同行或现在，通常说明永续增长率或折现率的假设偏乐观。";
+  $("#wacc-tile").textContent = pct(inp.rr);
+  if (W && $("#waccT")) {
+    const p2 = x => x == null ? "—" : (x * 100).toFixed(2) + "%";
+    $("#waccT").innerHTML = `<tr><th></th><th>值</th><th>来源</th></tr>`
+      + `<tr><td>无风险利率</td><td>${p2(W.rf)}</td><td class="muted">10 年美债 DGS10${W.rf_date ? `（${W.rf_date}）` : "（默认值）"}</td></tr>`
+      + `<tr><td>β（调整后）</td><td>${W.beta.toFixed(2)}</td><td class="muted">Yahoo 5 年月度 β ${W.beta_raw != null ? W.beta_raw.toFixed(2) : "—"}，Blume 调整 = 0.67 × 原始 + 0.33</td></tr>`
+      + `<tr><td>股权风险溢价</td><td>${p2(W.erp)}</td><td class="muted">美国长期共识区间约 4.5–5.5%</td></tr>`
+      + `<tr><td>股权成本</td><td><b>${p2(W.re)}</b></td><td class="muted">CAPM = 无风险 + β × 溢价</td></tr>`
+      + `<tr><td>税前债务成本</td><td>${p2(W.rd)}</td><td class="muted">利息费用 ÷ 有息负债${W.year ? `（${W.year} 年报）` : ""}</td></tr>`
+      + `<tr><td>税率</td><td>${p2(W.tax)}</td><td class="muted">有效税率</td></tr>`
+      + `<tr><td>权重 股权 / 债务</td><td>${p2(W.we)} / ${p2(W.wd)}</td><td class="muted">市值 ${money(W.equity)} · 有息负债 ${money(W.debt)}</td></tr>`
+      + `<tr><td>WACC</td><td><b>${p2(W.wacc)}</b></td><td class="muted">${Math.abs(inp.rr - W.wacc) > 0.0001 ? `当前用 ${p2(inp.rr)}` : "当前使用"}</td></tr>`;
+    $("#bridge").innerHTML = `<tr><th>企业价值</th><th>− 净负债</th><th>= 股权价值</th><th>÷ 股数</th><th>= 每股</th></tr>`
+      + `<tr><td>${money(r.ev)}</td><td>${money(r.nd)}</td><td>${money(r.equity)}</td><td>${Math.round(inp.shares)}M</td><td><b>${r.fair == null ? "—" : r.fair.toFixed(2)}</b></td></tr>`;
+    $("#wacc-notes").textContent = (W.notes || []).join("；") + ((W.notes || []).length ? "。" : "")
+      + ` 净负债 = 有息负债 ${money(W.debt)} − 现金及投资 ${money(W.cash)}。` + (AUTO.fcff_addback ? ` FCF 利润率已加回税后利息 ${pct(AUTO.fcff_addback)}。` : "");
+  }
   const yrs = r.rev.map((_, i) => AUTO.base_year + i + 1), nA = inp.use_path ? AUTO.analyst.length : (inp.analyst || []).length;
   $("#proj").innerHTML = `<tr><th></th>${yrs.map((y, i) => `<th>${y}${i < nA ? "ᵃ" : ""}</th>`).join("")}<th>永续</th></tr>`
     + `<tr><td>收入</td>${r.rev.map(x => `<td>${money(x)}</td>`).join("")}<td></td></tr>`

@@ -119,6 +119,14 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime, pre: dict
     L += ["", "## 预测市场 24 小时变化最大"]
     ch = [c for c in views.market_changes(conn, now, days=1) if c["delta_pp"] is not None and abs(c["delta_pp"]) >= 2][:10]
     L += [f"- {c['event']} · {c['label']}：{c['before']:.0%} → {c['prob']:.0%}（{c['delta_pp']:+.0f}pp）" for c in ch] or ["- 无明显变化"]
+    from radar import reddit
+    from radar.collectors.macro import kalshi_series
+    mcfg = cfg.macro.get("markets") or {}
+    L += ["", "## 经济数据预期（Kalshi）"]
+    L += views.econ_lines(views.econ_markets(conn, kalshi_series(mcfg), now, mcfg.get("shift_hours", 24))) or ["- 暂无"]
+    L += ["", "## 高频宏观（FRED 日度 / 周度，最新一期）"]
+    L += views.fast_macro_lines(views.macro_table(conn, cfg.macro.get("fred") or {})) or ["- 暂无"]
+    L += ["", f"## {reddit.LABEL}"] + reddit.for_prompt(conn, cfg.all_tickers, now)
     from radar import theses
     L += ["", "## 投资逻辑（用户在仪表盘里写的；异动时对照看逻辑是否受影响）"] + (theses.for_prompt(conn, cfg.all_tickers) or ["- 无"])
     return "\n".join(L)

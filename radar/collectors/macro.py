@@ -106,12 +106,27 @@ def parse_polymarket_events(data: list) -> list[Market]:
     return out
 
 
+def kalshi_series(cfg_markets: dict) -> list[dict]:
+    """Normalize `kalshi_series` entries (plain ticker or {series, label, max_events}) to dicts."""
+    default_n = cfg_markets.get("kalshi_max_events", 3)
+    out = []
+    for item in cfg_markets.get("kalshi_series") or []:
+        if isinstance(item, str):
+            item = {"series": item}
+        if not isinstance(item, dict) or not item.get("series"):
+            raise ValueError(f"bad kalshi_series entry: {item!r}")
+        out.append({"series": str(item["series"]).upper(), "label": item.get("label") or str(item["series"]),
+                    "max_events": int(item.get("max_events", default_n))})
+    return out
+
+
 def fetch_markets(cfg_markets: dict, get: Getter) -> list[Market]:
     out: list[Market] = []
-    for series in cfg_markets.get("kalshi_series", []):
+    for s in kalshi_series(cfg_markets):
+        series = s["series"]
         try:
             data = get(f"{KALSHI_EVENTS}?series_ticker={series}&status=open&with_nested_markets=true"
-                       f"&limit={cfg_markets.get('kalshi_max_events', 3)}").json()
+                       f"&limit={s['max_events']}").json()
             out += parse_kalshi_events(data)
         except Exception as e:
             log.warning("kalshi %s failed: %s", series, e)

@@ -245,17 +245,21 @@ def test_valuation_flow(rich_client, tmp_path):
     from radar import valuation
     b, fair = _fake_builder()
     conn = db.connect(tmp_path / "r.db")
-    res = valuation.refresh(conn, ["MSFT", "SMH"], NOW, builder=b, shares_of=lambda t: 10.5)
+    res = valuation.refresh(conn, ["MSFT", "SMH"], NOW, builder=b, shares_of=lambda t: 10.5, beta_of=lambda t: 1.2)
     assert res["MSFT"] == "ok" and "CIK" in res["SMH"]
     v = valuation.load(conn, "MSFT")
-    a = v["data"]["auto"]
-    # editable model with the same assumptions (taper, not stored path) reproduces the engine
-    assert valuation.project(valuation.merged(a, None))["fair"] == pytest.approx(fair)
-    assert valuation.project({**a, "use_path": False})["fair"] == pytest.approx(fair)
+    a, w = v["data"]["auto"], v["data"]["wacc"]
+    # discount rate = the company's WACC (no debt in the fixture → cost of equity = rf + 1.2 × ERP)
+    assert a["engine_rr"] == pytest.approx(0.07) and a["rr"] == pytest.approx(round(w["wacc"], 4))
+    assert w["wacc"] == pytest.approx(w["rf"] + (0.67 * 1.2 + 0.33) * 0.05) and a["net_debt"] == 0 and a["fcff_addback"] == 0
+    # editable model with the engine's rate (taper, not stored path) reproduces the engine
+    assert valuation.project({**valuation.merged(a, None), "rr": 0.07})["fair"] == pytest.approx(fair)
+    assert valuation.project({**a, "rr": 0.07, "use_path": False})["fair"] == pytest.approx(fair)
     conn.close()
     r = rich_client.get("/valuation")
     assert r.status_code == 200 and "MSFT" in r.text
-    assert rich_client.get("/v/MSFT").status_code == 200
+    page = rich_client.get("/v/MSFT")
+    assert page.status_code == 200 and "隐含退出倍数" in page.text and 'id="exit-ebitda"' in page.text
     mine = {"rr": 0.08, "terminal": 0.02, "fcf_margin": 0.25, "shares": 10, "g_start": 0.05, "analyst": [120, 130]}
     assert rich_client.post("/v/MSFT/inputs", json={"inputs": mine}).status_code == 200
     assert rich_client.post("/v/MSFT/inputs", json={"inputs": {**mine, "rr": 0.01}}).status_code == 400

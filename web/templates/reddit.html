@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Reddit · Invest Radar{% endblock %}
+{% block content %}
+<section>
+  <h2>Reddit 散户讨论</h2>
+  <div class="muted">群体情绪，噪音大（玩笑、推销、情绪化帖子都有），不是事实来源；只用来看热度和情绪方向。数据来自公开 RSS（无评分），每几小时拉一次。</div>
+  <div class="muted" style="margin-top:6px">
+    {% if last %}上次抓取 {{ last_when }}{% if not last.ok %}（失败：{{ last.detail[:160] }}）{% endif %}{% else %}还没抓取过{% endif %}
+    · 已积累 {{ '%.1f' % coverage }} 天
+    {% if running %}<span>· 正在抓取…（约 1–2 分钟，刷新查看）</span>
+    {% else %}<form method="post" action="/reddit/run" style="display:inline"><button class="chipbtn">立即抓取</button></form>{% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>跟踪标的提及</h2>
+  {% if counts %}
+  <div class="scroll"><table>
+    <tr><th>标的</th><th>24h 帖数</th><th>之前日均</th><th>最近的帖子</th></tr>
+    {% for c in counts %}
+    <tr><td><a href="/t/{{ c.ticker }}">{{ c.ticker }}</a></td>
+      <td>{{ c.n24 }}{% if c.ratio %}<div class="muted">×{{ '%.1f' % c.ratio }}</div>{% endif %}</td>
+      <td>{{ '%.1f' % c.base if c.base is not none else '历史不足' }}{% if c.days %}<div class="muted">前 {{ c.days }} 天</div>{% endif %}</td>
+      <td style="white-space:normal">{% for p in c.posts %}<div><a href="{{ p.link }}" target="_blank" rel="noopener">{{ p.title[:110] }}</a> <span class="muted">r/{{ p.subreddit }} · {{ p.published[5:16]|replace('T', ' ') }} UTC</span></div>{% endfor %}</td></tr>
+    {% endfor %}
+  </table></div>
+  <div class="muted" style="margin-top:6px">统计抓到的帖子里标题或正文出现 $TICKER / 独立大写 TICKER 的数量（短代码、常见词只认 $ 前缀）。绝对数小，看相对变化。</div>
+  {% else %}<div class="muted">最近没有帖子提到跟踪的标的</div>{% endif %}
+</section>
+
+<section>
+  <h2>今日热帖 <span class="chip">economics · investing · stocks · StockMarket · wallstreetbets</span></h2>
+  {% if top %}
+  <ul class="alerts">
+    {% for p in top %}
+    <li><a href="{{ p.link }}" target="_blank" rel="noopener">{{ p.title }}</a>
+      <span class="muted">· r/{{ p.subreddit }} · {{ p.published[5:16]|replace('T', ' ') }} UTC</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}<div class="muted">暂无（等下一次抓取）</div>{% endif %}
+</section>
+{% endblock %}

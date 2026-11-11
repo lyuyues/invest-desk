@@ -10,6 +10,7 @@ Jobs (each records a run for the heartbeat):
   weekly    Claude weekly report             (weekly, after discover)
   heartbeat stale/failed job check           (hourly)
   brief     pre-market daily brief (Claude)  (weekdays 09:25 New York; refreshes edgar + markets first)
+  reddit    public subreddit RSS → posts + ticker mentions (every few hours, web scheduler)
 Other: serve, test-push, daily (= prices edgar macro earnings markets heartbeat)
 """
 from __future__ import annotations
@@ -29,7 +30,7 @@ from radar.notify import make_pusher
 
 log = logging.getLogger("radar")
 
-JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles"]
+JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles", "reddit"]
 DAILY = ["prices", "edgar", "macro", "earnings", "markets", "heartbeat"]
 
 
@@ -65,6 +66,8 @@ def _job_fn(name: str, conn, cfg: Config, now: datetime, push):
         return lambda: jobs.earnings_job(conn, cfg, now, push, runner=weekly.claude_runner(timeout=600))
     if name == "heartbeat":
         return lambda: jobs.heartbeat_job(conn, cfg, now, push)
+    if name == "reddit":
+        return lambda: jobs.reddit_job(conn, cfg, now)
     if name == "discover":
         def run():
             rows = discovery.discover(conn, cfg.discovery, now, get, fetch_quotes=fetch_quotes)

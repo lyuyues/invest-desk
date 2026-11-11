@@ -111,6 +111,21 @@ def _profiles_missing() -> bool:
 
 
 
+def reddit_due(now: datetime, last: str | None, every_hours: float) -> bool:
+    return last is None or (now - datetime.fromisoformat(last)).total_seconds() >= every_hours * 3600
+
+
+def _last_run(job: str) -> str | None:
+    """Last attempt (ok or not) — a failing feed shouldn't be retried every 30 s."""
+    cfg = load_config()
+    conn = db.connect(cfg.db_path)
+    try:
+        r = conn.execute("SELECT MAX(ts) AS ts FROM runs WHERE job=?", (job,)).fetchone()
+    finally:
+        conn.close()
+    return r["ts"] if r else None
+
+
 async def spawn_args(*args: str) -> None:
     proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "radar", *args, cwd=str(ROOT),
                                                 stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
@@ -127,6 +142,12 @@ async def loop() -> None:
             if _profiles_missing() and (now - state.get("profiles_at", now - timedelta(hours=1))).total_seconds() > 600:
                 state["profiles_at"] = now
                 asyncio.create_task(spawn("profiles"))
+            every = float(load_config().reddit.get("every_hours", 4) or 0)
+            if (every and "reddit" not in state.get("jobs", set()) and reddit_due(now, _last_run("reddit"), every)
+                    and (now - state.get("reddit_at", now - timedelta(hours=1))).total_seconds() > 1800):
+                state["reddit_at"] = now  # ≤1 start per 30 min even if the job dies before recording a run
+                log.info("starting reddit fetch")
+                asyncio.create_task(spawn("reddit"))
             if not state.get("valuing") and valuation_due(now, _last_valuation_run()):
                 log.info("starting weekly valuation refresh")
                 asyncio.create_task(run_valuation())

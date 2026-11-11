@@ -93,12 +93,12 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime) -> str:
             L.append(f"| {r['ticker']} | {_fmt(r['price'])} | {_fmt(r['auto'])} | {_fmt(r['mine'])} | {_fmt(r['upside'], '{:+.0f}%')} |")
 
     labels = cfg.macro.get("fred") or {}
-    L += ["", "## 宏观实际值（FRED，滞后）", "| 指标 | 最新 | 日期 | 周变化 | 备注 |", "|---|---|---|---|---|"]
+    L += ["", "## 宏观实际值（FRED；日度 / 周度为高频，月度 / 季度滞后）", "| 指标 | 频率 | 最新 | 日期 | 周变化 | 备注 |", "|---|---|---|---|---|---|"]
     for m in views.macro_table(conn, labels):
         if m["value"] is None:
             continue
         note = f"CPI 同比 {m['yoy']:.1f}%" if m.get("yoy") is not None else ""
-        L.append(f"| {m['label']} | {m['value']:.2f} | {m['date']} | {_fmt(m['change'], '{:+.2f}')} | {note} |")
+        L.append(f"| {m['label']} | {m.get('freq', '')} | {views.fmt_num(m['value'])} | {m['date']} | {views.fmt_num(m['change'], True, m['value']) if m['change'] is not None else '—'} | {note} |")
 
     L += ["", "## Fed 路径（Kalshi 隐含利率上限）与预期差"]
     for f in views.fed_path(conn, now):
@@ -109,8 +109,14 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime) -> str:
     if L[-1].startswith("## Fed"):
         L.append("- 暂无数据")
 
+    from radar.collectors.macro import kalshi_series
+    series = kalshi_series(cfg.macro.get("markets") or {})
+    L += ["", "## 经济数据预期（Kalshi：CPI / 失业率 / GDP / 衰退）"]
+    L += views.econ_lines(views.econ_markets(conn, series, now, 24 * 7)) or ["- 暂无"]
+
     L += ["", "## 预测市场：本周变化最大的合约"]
-    changes = [c for c in views.market_changes(conn, now) if c["delta_pp"] is not None][:15]
+    changes = [c for c in views.market_changes(conn, now) if c["delta_pp"] is not None
+               and not views.is_econ_ladder(c, series)][:15]
     L += [f"- [{c['source']}] {c['event']} · {c['label']}：{c['before']:.0%} → {c['prob']:.0%}（{c['delta_pp']:+.0f}pp）"
           for c in changes] or ["- 历史不足一周，暂无变化数据"]
 
@@ -123,6 +129,9 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime) -> str:
         p = prof.get(c["ticker"]) or {}
         who = f"{p.get('name_zh') or p.get('name') or ''}，{p.get('desc_zh') or ''}".strip("，")
         L.append(f"- {c['ticker']}{('（' + who + '）') if who else ''}（{c['score']:.1f}，{'+'.join(c['channels'])}）：{notes[:200]}")
+
+    from radar import reddit
+    L += ["", f"## {reddit.LABEL}"] + reddit.for_prompt(conn, cfg.all_tickers, now)
 
     from radar import notes
     L += ["", "## 用户笔记（仪表盘「笔记」页，近 90 天；用户自己记的学习心得 / 财报与新闻想法，引用时可说「你之前记过……」）"]

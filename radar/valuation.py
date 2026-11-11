@@ -6,8 +6,9 @@ dashboard can recompute fair value from user-adjusted assumptions (same math in 
 Model (10 years):
   - analyst years: revenue = consensus estimate (yfinance "0y", "+1y")
   - remaining years: revenue growth tapers linearly from `g_start` to terminal growth
-  - FCF = revenue × FCF margin; discounted at required return; Gordon terminal value
-  - fair value = (Σ PV(FCF) + PV(terminal)) / shares
+  - FCF to the firm = revenue × FCF margin (CFO − capex + after-tax interest), discounted at the company's
+    WACC (radar/wacc.py; editable); Gordon terminal value
+  - fair value = (Σ PV(FCF) + PV(terminal) − net debt) / shares
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import math
 import sqlite3
 from datetime import datetime
 
+from radar import wacc as waccmod
 from radar.db import _ts
 
 log = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ def project(inp: dict) -> dict:
     """Recompute the DCF from (possibly user-edited) inputs."""
     rr, tg = inp["rr"], inp["terminal"]
     if rr <= tg:
-        raise ValueError("必要回报率必须大于永续增长率")
+        raise ValueError("折现率必须大于永续增长率")
     analyst = [a for a in inp.get("analyst") or [] if a]
     n = len(analyst)
     if inp.get("use_path") and inp.get("path"):
@@ -89,9 +91,10 @@ def project(inp: dict) -> dict:
     tv = fcfs[-1] * (1 + tg) / (rr - tg)
     pv_tv = tv / (1 + rr) ** len(fcfs)
     ev = sum(pvs) + pv_tv
+    equity = ev - (inp.get("net_debt") or 0.0)
     return {"years": [inp["base_year"] + i + 1 for i in range(len(revs))], "revenue": revs, "growth": growth,
-            "fcf": fcfs, "pv": pvs, "pv_terminal": pv_tv, "ev": ev,
-            "fair": ev / inp["shares"] if inp["shares"] else None,
+            "fcf": fcfs, "pv": pvs, "pv_terminal": pv_tv, "ev": ev, "equity": equity, "tv": tv,
+            "fair": equity / inp["shares"] if inp["shares"] else None,
             "terminal_share": pv_tv / ev if ev else None}
 
 
@@ -117,8 +120,22 @@ def fix_share_units(auto: dict, implied: float | None) -> str | None:
     return f"SEC 股数 {sec:,.0f}M 与报价口径不符（如 A/B 股），改用市值/股价推算的 {implied:,.0f}M"
 
 
+def apply_wacc(conn: sqlite3.Connection, ticker: str, auto: dict, hist: dict, meta: dict, beta_of) -> dict:
+    """Discount at the company's WACC on free cash flow to the firm, and bridge EV → equity with net debt.
+    Mutates `auto` (rr, fcf_margin, net_debt; the engine's own values kept as engine_rr / engine_fcf_margin)."""
+    q = conn.execute("SELECT price FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (ticker,)).fetchone()
+    rf, rf_date = waccmod.latest_rf(conn)
+    w = waccmod.compute(hist["rows"], hist["cols"], q["price"] if q else None, auto.get("shares"), beta_of(ticker), rf,
+                        sector=meta.get("Sector"))
+    w["rf_date"] = rf_date
+    add = 0.0 if w["financial"] else waccmod.interest_addback_margin(hist["rows"], w["tax"])
+    auto.update(engine_rr=auto["rr"], engine_fcf_margin=auto["fcf_margin"], rr=round(w["wacc"], 4),
+                fcf_margin=auto["fcf_margin"] + add, fcff_addback=add, net_debt=w["net_debt"])
+    return w
+
+
 def refresh(conn: sqlite3.Connection, tickers: list[str], now: datetime, builder=None,
-            shares_of=market_shares) -> dict[str, str]:
+            shares_of=market_shares, beta_of=waccmod.market_beta) -> dict[str, str]:
     """Run the engine for each ticker; store results (or the error). Returns ticker -> 'ok' / error."""
     if builder is None:
         from radar.dcf import builder
@@ -135,6 +152,12 @@ def refresh(conn: sqlite3.Connection, tickers: list[str], now: datetime, builder
             note = fix_share_units(auto, shares_of(t))
             data = {"hist": _table(hist), "proj": _table(proj), "quarterly": quarterly,
                     "meta": {k.strip(): _clean(v) for k, v in meta.items()}, "auto": auto, "note": note}
+            if auto["rr"] <= auto["terminal"]:
+                raise ValueError("引擎回报率不大于永续增长率")
+            data["wacc"] = apply_wacc(conn, t, auto, data["hist"], data["meta"], beta_of)
+            if auto["rr"] <= auto["terminal"] + 0.01:  # keep the Gordon formula sane
+                data["wacc"]["notes"].append(f"WACC {auto['rr']:.1%} 太接近永续增长率，折现率按永续增长 + 1% 下限")
+                auto["rr"] = round(auto["terminal"] + 0.01, 4)
             conn.execute("INSERT OR REPLACE INTO valuations VALUES (?,?,?,NULL)",
                          (t, _ts(now), json.dumps(data, ensure_ascii=False)))
             out[t] = "ok"

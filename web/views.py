@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from radar.views import fmt_num  # noqa: F401  (re-exported for the templates)
+
 
 def quote_view(ticker: str, row) -> dict:
     """Flatten a quotes row into display fields; row may be None (no data yet)."""
@@ -34,3 +36,4 @@ def sparkline_points(values: list[float], width: int = 320, height: int = 80) ->
 
 def local_time(iso: str, tz: str) -> str:
     return datetime.fromisoformat(iso).astimezone(ZoneInfo(tz)).strftime("%m-%d %H:%M")
+

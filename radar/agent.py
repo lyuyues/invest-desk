@@ -100,6 +100,21 @@ def page_context(conn: sqlite3.Connection, page: str) -> str:
     if page == "/theses":
         from radar import theses
         return "用户正在看「投资逻辑」页：\n" + "\n\n".join(theses.for_prompt(conn, [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]))
+    if page == "/reddit":
+        from radar import reddit
+        now = datetime.now(timezone.utc)
+        tickers = [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]
+        return f"用户正在看「Reddit」页。{reddit.LABEL}：\n" + "\n".join(reddit.for_prompt(conn, tickers, now, top=15, per=20))
+    if page == "/macro":
+        from radar.collectors.macro import kalshi_series
+        from radar.config import load_config
+        cfg = load_config()
+        now = datetime.now(timezone.utc)
+        mcfg = cfg.macro.get("markets") or {}
+        L = ["用户正在看「宏观」页（FRED 实际值分组 + Kalshi Fed / 经济数据预期 + Polymarket）。", "经济数据预期（Kalshi）："]
+        L += views.econ_lines(views.econ_markets(conn, kalshi_series(mcfg), now, mcfg.get("shift_hours", 24))) or ["- 暂无"]
+        L += ["高频宏观（FRED 日度 / 周度）："] + (views.fast_macro_lines(views.macro_table(conn, cfg.macro.get("fred") or {})) or ["- 暂无"])
+        return "\n".join(L)
     names = {"/": "总览", "/macro": "宏观", "/discover": "发现（候选池）", "/reports": "周报列表"}
     if page.startswith("/reports/"):
         return f"用户正在看周报 {page}。"

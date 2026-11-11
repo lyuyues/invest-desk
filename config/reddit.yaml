@@ -1,0 +1,14 @@
+# Reddit：公开 RSS（无需账号 / API key）。群体情绪，噪音大，只作参考。
+# 未登录的 RSS 限速约 1 次/分钟，所以只拉少量"多版块合并"的 listing；搜索 RSS（search.rss）在服务器上返回 403，
+# 所以个股提及 = 在这些 listing 的标题+正文里匹配跟踪的 ticker（$NVDA 或独立的大写 NVDA）。
+feeds:
+  # 宏观 / 大盘：几个版块当天最热
+  - {name: top, path: "r/economics+investing+stocks+StockMarket+wallstreetbets/top/.rss?t=day&limit=100"}
+  # 个股提及：最新帖（100 条约覆盖 1–2 天，每 4 小时拉一次不会漏）
+  - {name: new, path: "r/stocks+investing+StockMarket+wallstreetbets+options+ValueInvesting/new/.rss?limit=100"}
+every_hours: 4          # 网页进程内调度（web/scheduler.py）
+min_interval_s: 61      # 两次请求之间的间隔（遵守 x-ratelimit-reset）
+# 这些 ticker 和常见英文词 / 缩写撞车，只认 $ 前缀（≤2 个字母的 ticker 本来就只认 $ 前缀）
+require_dollar: []
+# 额外别名（不区分大小写的整词匹配），例如 {GOOGL: [Google, Alphabet]}
+aliases: {}

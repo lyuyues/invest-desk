@@ -19,7 +19,7 @@ from radar import agent, db, views
 from radar.collectors.edgar import item_labels
 from radar.discovery import latest_candidates
 from radar.config import load_config
-from web.views import local_time, quote_view, sparkline_points
+from web.views import fmt_num, local_time, quote_view, sparkline_points
 
 from contextlib import asynccontextmanager
 
@@ -38,6 +38,7 @@ async def lifespan(app):
 
 app = FastAPI(title="Invest Radar", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+templates.env.filters["num"] = fmt_num
 
 
 LEVEL_ICON = {"urgent": "🔴", "notice": "🟡", "log": "⚪"}
@@ -239,11 +240,16 @@ def ticker_page(request: Request, ticker: str):
 
 @app.get("/macro", response_class=HTMLResponse)
 def macro_page(request: Request):
+    from radar.collectors.macro import kalshi_series
+
     cfg, conn = _ctx()
     now = datetime.now(timezone.utc)
+    mcfg = cfg.macro.get("markets") or {}
+    series = kalshi_series(mcfg)
     try:
         table = views.macro_table(conn, cfg.macro.get("fred") or {})
         fed = views.fed_path(conn, now)
+        econ = views.econ_markets(conn, series, now, mcfg.get("shift_hours", 24))
         changes = views.market_changes(conn, now, days=1)
         markets = views.latest_markets(conn)
     finally:
@@ -256,9 +262,40 @@ def macro_page(request: Request):
             events.setdefault(m["event_title"], []).append(m)
     poly = [(title, sorted(ms, key=lambda r: -r["prob"])[:6]) for title, ms in events.items()]
     return _render(request, "macro.html", {
-        "table": table, "fed": fed, "poly": poly,
-        "movers": [c for c in changes if c["delta_pp"] is not None and abs(c["delta_pp"]) >= 3][:12],
+        "groups": views.macro_groups(table, cfg.macro.get("fred_groups") or {}), "fed": fed, "poly": poly,
+        "econ": econ,
+        "movers": [c for c in changes if c["delta_pp"] is not None and abs(c["delta_pp"]) >= 3
+                   and not views.is_econ_ladder(c, series)][:12],  # ladders are shown as implied values instead
     }, "macro")
+
+
+@app.get("/reddit", response_class=HTMLResponse)
+def reddit_page(request: Request):
+    from radar import reddit
+    from web import scheduler
+
+    cfg, conn = _ctx()
+    now = datetime.now(timezone.utc)
+    try:
+        counts = reddit.mention_counts(conn, cfg.all_tickers, now)
+        for c in counts:
+            c["posts"] = reddit.ticker_posts(conn, c["ticker"], now, days=2, limit=4)
+        ctx = {"top": reddit.top_posts(conn, now, 25), "counts": counts,
+               "coverage": reddit.coverage_days(conn, now), "last": db.last_runs(conn).get("reddit"),
+               "running": "reddit" in scheduler.state.get("jobs", set()), "tz": cfg.tz}
+    finally:
+        conn.close()
+    if ctx["last"]:
+        ctx["last_when"] = local_time(ctx["last"]["ts"], cfg.tz)
+    return _render(request, "reddit.html", ctx, "reddit")
+
+
+@app.post("/reddit/run")
+async def reddit_run():
+    from web import scheduler
+
+    asyncio.create_task(scheduler.spawn("reddit"))
+    return RedirectResponse("/reddit", status_code=303)
 
 
 @app.get("/discover", response_class=HTMLResponse)

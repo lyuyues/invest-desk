@@ -204,7 +204,7 @@
 </style>
 </head>
 {% macro navlinks() %}
-    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports')] + ledger_nav|default([]) %}
+    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('reddit','Reddit','/reddit'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports')] + ledger_nav|default([]) %}
     <a href="{{ href }}" class="{{ 'on' if active == key else '' }}">{{ label }}</a>
     {% endfor %}
 {% endmacro %}

@@ -174,6 +174,27 @@ CREATE TABLE IF NOT EXISTS notes (
     deleted TEXT
 );
 CREATE INDEX IF NOT EXISTS notes_ticker ON notes (ticker, created);
+-- Reddit (public RSS listings): crowd sentiment, noisy. score stays NULL (RSS has no score).
+CREATE TABLE IF NOT EXISTS reddit_posts (
+    id TEXT PRIMARY KEY,          -- t3_xxx
+    subreddit TEXT NOT NULL,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    author TEXT,
+    published TEXT NOT NULL,      -- ISO UTC
+    score INTEGER,
+    first_seen TEXT NOT NULL,
+    top_seen TEXT,                -- last time it was in the "top of the day" feed
+    top_rank INTEGER              -- its position there (1 = top)
+);
+CREATE INDEX IF NOT EXISTS reddit_posts_pub ON reddit_posts (published);
+CREATE TABLE IF NOT EXISTS reddit_mentions (
+    post_id TEXT NOT NULL,
+    ticker TEXT NOT NULL,
+    published TEXT NOT NULL,
+    PRIMARY KEY (post_id, ticker)
+);
+CREATE INDEX IF NOT EXISTS reddit_mentions_ticker ON reddit_mentions (ticker, published);
 CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL,

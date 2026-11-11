@@ -21,11 +21,21 @@ rules:
   - {id: insider_cluster, kind: insider_cluster, tier: all, min_insiders: 2, days: 30, level: urgent}
   # 财报：实际 vs 预期
   - {id: earnings, kind: earnings, tier: all, level: notice}
-  # 预测市场概率 24h 变化
-  - {id: prob_shift, kind: prob_shift, threshold_pp: 15, hours: 24, level: notice}
-  # 宏观阈值（穿越）
+  # 预测市场概率 24h 变化（单个合约）。CPI / 失业率 / GDP 是几十档"高于 X%"阶梯，数据发布前后每档都会大幅跳动，
+  # 逐档推送会刷屏 → exclude_series 排除，改在宏观页看隐含值变化。衰退（KXRECSSNBER）是单个合约，保留。
+  - {id: prob_shift, kind: prob_shift, threshold_pp: 15, hours: 24, level: notice,
+     exclude_series: [KXCPIYOY, KXCPICOREYOY, KXU3, KXGDP]}
+  # 宏观阈值（穿越：上一观测 ≤ 阈值 < 最新观测；每个观测日最多一次）
   - {id: vix_30,  kind: macro_cross, series: VIXCLS, above: 30, label: VIX, level: notice}
   - {id: curve_0, kind: macro_cross, series: T10Y2Y, below: 0, label: 10Y-2Y 利差, level: notice}
+  - {id: stlfsi_0, kind: macro_cross, series: STLFSI4, above: 0, label: 圣路易斯金融压力指数转正（金融压力高于常态）, level: notice}
+  - {id: nfci_0,   kind: macro_cross, series: NFCI, above: 0, label: 芝加哥联储金融条件转正（金融条件偏紧）, level: notice}
+  - {id: icsa_250k, kind: macro_cross, series: ICSA, above: 250000, label: 首次申领失业金, level: notice}
+  # 宏观跳变（macro_change）：
+  #   vs: avg  → 最新值 vs 之前 window 个观测的均值，变化 ≥ pct%（每个新观测最多一次）
+  #   vs: days → 最新值 vs days 天前的观测，绝对变化 ≥ abs（单位同序列；每 ISO 周最多一次）
+  - {id: icsa_jump,   kind: macro_change, series: ICSA, vs: avg, window: 4, pct: 10, direction: up, label: 首次申领失业金, level: notice}
+  - {id: t10yie_move, kind: macro_change, series: T10YIE, vs: days, days: 7, abs: 0.15, label: 10年通胀预期, level: notice}
 
 # 心跳：任务超过 N 小时没成功跑 → 推 🟡
 heartbeat:
@@ -37,3 +47,4 @@ heartbeat:
   discover: 192
   weekly: 192
   brief: 96
+  reddit: 14

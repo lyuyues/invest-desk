@@ -71,8 +71,9 @@ def cluster_purchases(conn, cfg: Config, today, new_tx) -> dict[str, list[dict]]
 def macro_job(conn, cfg: Config, now: datetime, push: Push, get: Getter) -> str:
     series = list((cfg.macro.get("fred") or {}).keys())
     n = macro.collect_fred(conn, series, get, now.date())
-    latest = {s: macro.last_obs(conn, s, 2) for s in series}
-    d = deliver(conn, cfg, events.macro_cross_fires(cfg.rules, latest), now, push)
+    latest = {s: macro.last_obs(conn, s, 40) for s in series}
+    fires = events.macro_cross_fires(cfg.rules, latest) + events.macro_change_fires(cfg.rules, latest)
+    d = deliver(conn, cfg, fires, now, push)
     return f"fred_obs={n} pushed={len(d.push)}"
 
 
@@ -85,6 +86,18 @@ def markets_job(conn, cfg: Config, now: datetime, push: Push, get: Getter) -> st
     macro.store_markets(conn, markets, now)
     d = deliver(conn, cfg, events.prob_shift_fires(cfg.rules, sh), now, push)
     return f"markets={len(markets)} pushed={len(d.push)}"
+
+
+def reddit_job(conn, cfg: Config, now: datetime, get=None, sleep=None) -> str:
+    """Public subreddit RSS → reddit_posts / reddit_mentions. Fails only if every feed failed."""
+    from radar.collectors import reddit
+
+    kw = {"sleep": sleep} if sleep else {}
+    st = reddit.collect(conn, cfg.reddit, cfg.all_tickers, now, get or reddit.make_getter(), **kw)
+    if not st["ok"]:
+        raise RuntimeError("all reddit feeds failed: " + " | ".join(st["failed"]))
+    return (f"feeds={st['ok']}/{st['ok'] + len(st['failed'])} posts={st['posts']} new={st['new']} "
+            f"mentions={st['mentions']}" + (f" failed={'; '.join(st['failed'])}" if st["failed"] else ""))
 
 
 def earnings_job(conn, cfg: Config, now: datetime, push: Push, fetch=macro.fetch_earnings, runner=None) -> str:
