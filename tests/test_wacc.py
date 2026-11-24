@@ -20,6 +20,10 @@ def test_wacc_financials_use_cost_of_equity_and_no_bridge():
     w = wacc.compute(ROWS, COLS, price=50.0, shares_m=48.0, beta=1.0, rf=0.04, sector="BANK")
     assert w["wacc"] == pytest.approx(w["re"]) and w["net_debt"] == 0 and w["financial"]
 
+    w = wacc.compute(ROWS, COLS, price=50.0, shares_m=48.0, beta=1.0, rf=0.04, sector="CONSUMER", industry="Banks - Diversified")
+    assert w["financial"] and w["net_debt"] == 0
+    assert not wacc.compute(ROWS, COLS, 50.0, 48.0, 1.0, 0.04, industry="Credit Services")["financial"]
+
 
 def test_wacc_fallbacks_and_clamps():
     w = wacc.compute({"Total Debt (B)": [1.0]}, ["2025"], price=10.0, shares_m=100.0, beta=None, rf=0.04)

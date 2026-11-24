@@ -1,0 +1,47 @@
+{% macro svgchart(c, legend=true) %}
+{% if c %}
+<svg class="lchart" viewBox="-44 -8 {{ c.w + 52 }} {{ c.h + 28 }}" role="img" aria-label="chart">
+  {% for t in c.yt %}<line x1="0" x2="{{ c.w }}" y1="{{ t.y }}" y2="{{ t.y }}" class="grid"/>
+  <text x="-6" y="{{ t.y + 3 }}" text-anchor="end">{{ t.label }}</text>{% endfor %}
+  {% for t in c.xt %}<text x="{{ t.x }}" y="{{ c.h + 16 }}" text-anchor="middle">{{ t.label }}</text>{% endfor %}
+  {% if c.cut_x %}<line x1="{{ c.cut_x }}" x2="{{ c.cut_x }}" y1="0" y2="{{ c.h }}" class="cut"/>
+  <text x="{{ c.cut_x + 4 }}" y="8" class="cutl">样本外 →</text>{% endif %}
+  {% for ln in c.lines %}<polyline points="{{ ln.pts }}" fill="none" stroke="{{ ln.color }}" stroke-width="{{ 1.4 if loop.first and c.lines|length > 1 else 1.8 }}" vector-effect="non-scaling-stroke"/>{% endfor %}
+  {% for m in c.marks %}{% if m.side == 'buy' %}<path d="M{{ m.x }},{{ m.y + 3 }} l-4,7 h8 z" class="mbuy"><title>{{ m.tip }}</title></path>{% else %}<path d="M{{ m.x }},{{ m.y - 3 }} l-4,-7 h8 z" class="msell"><title>{{ m.tip }}</title></path>{% endif %}{% endfor %}
+</svg>
+{% if legend and c.lines|length > 1 %}<div class="legend">{% for ln in c.lines %}<span><i style="background:{{ ln.color }}"></i>{{ ln.label }}</span>{% endfor %}</div>{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro pct(v, signed=false) %}{% if v is none %}—{% else %}<span class="{{ 'up' if signed and v > 0 else 'down' if signed and v < 0 else '' }}">{{ ('%+.1f%%' if signed else '%.1f%%') % (v * 100) }}</span>{% endif %}{% endmacro %}
+
+{% macro chart_css() %}
+<style>
+  svg.lchart { width: 100%; height: auto; overflow: visible; }
+  svg.lchart text { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  svg.lchart .grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  svg.lchart .cut { stroke: var(--ink); stroke-dasharray: 3 3; opacity: .45; vector-effect: non-scaling-stroke; }
+  svg.lchart .cutl { fill: var(--ink); opacity: .6; }
+  svg.lchart .mbuy { fill: var(--up); } svg.lchart .msell { fill: var(--down); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 6px; }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+  .simform { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; }
+  .simform label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .simform input, .simform select { font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line);
+        background: var(--bg); color: var(--ink); width: 7em; }
+  .simform input.tk { text-transform: uppercase; }
+  .simform button, .btn { font: inherit; font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--ink);
+        background: var(--ink); color: var(--bg); cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn.ghost { background: var(--card); color: var(--ink); border-color: var(--line); }
+  .picks { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; flex-basis: 100%; }
+  .picks label { flex-direction: row; align-items: baseline; gap: 8px; font-size: 14px; color: var(--ink); }
+  .picks label input { width: auto; }
+  .picks .acts { margin-left: auto; display: flex; gap: 6px; }
+  .rule { font-size: 13px; color: var(--muted); margin: 2px 0; }
+  .rule b { color: var(--ink); font-weight: 600; }
+  td.l { text-align: left; white-space: normal; }
+  .verdict { border-left: 3px solid var(--line); padding: 4px 10px; margin: 8px 0; font-size: 14px; }
+  .verdict.good { border-color: var(--up); } .verdict.bad { border-color: var(--down); }
+  details.tr summary { cursor: pointer; font-size: 14px; color: var(--accent); margin-top: 8px; }
+</style>
+{% endmacro %}

@@ -40,6 +40,13 @@ app = FastAPI(title="Invest Radar", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.filters["num"] = fmt_num
 
+from web.sim_routes import router as _sim_router  # noqa: E402
+
+app.include_router(_sim_router)
+from web.trade_routes import router as _trade_router  # noqa: E402
+
+app.include_router(_trade_router)
+
 
 LEVEL_ICON = {"urgent": "🔴", "notice": "🟡", "log": "⚪"}
 CHANNEL_NAMES = {"screen": "量化筛选", "theme": "主题", "smart_money": "聪明钱"}
@@ -561,16 +568,24 @@ def valuation_detail(request: Request, ticker: str):
     from radar import valuation
 
     ticker = ticker.upper()
+    if not TICKER_RE.match(ticker):
+        raise HTTPException(400, "bad ticker")
     cfg, conn = _ctx()
     try:
         v = valuation.load(conn, ticker)
-        q = conn.execute("SELECT price FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (ticker,)).fetchone()
+        if v is None:   # e.g. a name from the market-wide scan: build the full model on first view (~2 s)
+            conn.close()
+            _refresh_valuation([ticker])
+            cfg, conn = _ctx()
+            v = valuation.load(conn, ticker)
+        price = valuation.latest_price(conn, ticker)
     finally:
         conn.close()
     return _render(request, "valuation_detail.html", {
         "ticker": ticker, "v": v["data"] if v else None, "mine": v["mine"] if v else None,
         "error": (v["error"] if v else "还没有估值数据，点「重新拉 SEC 数据」"),
-        "updated": local_time(v["updated"], cfg.tz) if v else "—", "price": q["price"] if q else None}, "valuation")
+        "updated": local_time(v["updated"], cfg.tz) if v else "—", "price": price,
+        "from_scan": request.query_params.get("from")}, "valuation")
 
 
 def _refresh_valuation(tickers: list[str]) -> None:

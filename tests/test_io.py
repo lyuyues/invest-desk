@@ -96,3 +96,15 @@ def test_backfill_history_only_when_missing(tmp_path):
     rows = db.price_history(conn, "MSFT")
     assert [r["price"] for r in rows] == [100.0, 102.0] and rows[1]["prev_close"] == 100.0
     assert backfill_history(conn, ["MSFT"], ticker_factory=T) == 0 and calls == ["MSFT"]
+
+
+def test_click_paths():
+    from radar.models import Fire
+    from radar.notify import click_path
+    f = lambda rid, t="*": Fire(rid, t, "notice", "x", "y")  # noqa: E731
+    assert click_path(f("port:1:2026-11-12")) == "/scan/1"
+    assert click_path(f("paper:4:2026-11-12", "MSFT")) == "/paper/4"
+    assert click_path(f("weekly:7")) == "/reports/7"
+    assert click_path(f("enote:MSFT:2026-10-29", "MSFT")) == "/earnings#e-MSFT-2026-10-29"
+    assert click_path(f("price-drop", "MSFT")) == "/t/MSFT"
+    assert click_path(f("heartbeat:scan", "SYSTEM")) == "/"

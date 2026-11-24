@@ -7,7 +7,7 @@
     点标的进去可以改假设；「我的」= 你保存的假设算出的公允价值。每周六自动重算。</div>
 </section>
 <section>
-  <div class="scroll"><table>
+  <div class="scroll"><table class="sortable">
     <tr><th>标的</th><th>价格</th><th>公允价值·自动</th><th>公允价值·我的</th><th>上涨空间</th><th>FCF 利润率</th><th>第1年收入增速</th></tr>
     {% for r in rows %}
     <tr><td><a href="/v/{{ r.ticker }}">{{ r.ticker }}</a>{% if r.ticker in holdings %} <span class="chip">持仓</span>{% endif %}

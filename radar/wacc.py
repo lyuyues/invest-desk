@@ -19,6 +19,7 @@ ERP = 0.05            # equity risk premium (US, long-run consensus range ~4.5�
 RF_DEFAULT = 0.043    # used only when no DGS10 observation is stored
 BETA_DEFAULT = 1.0
 FINANCIAL_SECTORS = ("BANK", "INSURANCE")
+FINANCIAL_INDUSTRIES = ("Banks", "Insurance")
 
 
 def _last(rows: dict, key: str) -> tuple[float | None, int | None]:
@@ -39,19 +40,26 @@ def latest_rf(conn) -> tuple[float, str | None]:
     return (float(r["value"]) / 100, r["date"]) if r else (RF_DEFAULT, None)
 
 
-def market_beta(ticker: str) -> float | None:
-    """Yahoo's 5-year monthly beta vs the S&P 500."""
+def market_profile(ticker: str) -> dict:
+    """Yahoo's 5-year monthly beta vs the S&P 500, and its industry (used to spot banks / insurers — the SEC
+    facts the engine reads carry no SIC code, so the engine's own sector guess can't tell)."""
     try:
         import yfinance as yf
 
-        b = yf.Ticker(ticker).info.get("beta")
-        return float(b) if b is not None else None
+        info = yf.Ticker(ticker).info
+        b = info.get("beta")
+        return {"beta": float(b) if b is not None else None, "industry": info.get("industry")}
     except Exception:
-        return None
+        return {"beta": None, "industry": None}
+
+
+def is_financial(sector: str | None, industry: str | None) -> bool:
+    """Banks and insurers (Yahoo industries "Banks - …", "Insurance - …"); card networks etc. are not."""
+    return (sector or "").upper() in FINANCIAL_SECTORS or (industry or "").startswith(FINANCIAL_INDUSTRIES)
 
 
 def compute(hist_rows: dict, cols: list[str], price: float | None, shares_m: float | None, beta: float | None,
-            rf: float, sector: str | None = None, erp: float = ERP) -> dict:
+            rf: float, sector: str | None = None, erp: float = ERP, industry: str | None = None) -> dict:
     """WACC and its pieces. Money in $M. Returns {"wacc", "re", "rd", "tax", "we", "wd", "beta", "rf", "erp",
     "equity", "debt", "cash", "net_debt", "financial", "year", "notes": [...]}."""
     notes = []
@@ -82,7 +90,7 @@ def compute(hist_rows: dict, cols: list[str], price: float | None, shares_m: flo
             notes.append("利息费用缺失，债务成本按 10 年美债 + 1.5%")
     rd = min(max(rd, rf), rf + 0.08)
 
-    financial = (sector or "").upper() in FINANCIAL_SECTORS
+    financial = is_financial(sector, industry)
     equity = price * shares_m if price and shares_m else None
     if financial:
         notes.append("银行/保险：负债属于经营，只用股权成本，不扣净负债")

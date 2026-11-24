@@ -5,11 +5,13 @@
   <div class="row" style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
     <h2 style="margin:0;font-size:18px;color:var(--ink)">{{ ticker }} 估值</h2>
     <a href="/t/{{ ticker }}" style="color:var(--accent);text-decoration:none;font-size:13px">个股页 →</a>
+    {% if from_scan %}<a href="/scan/{{ from_scan }}" style="color:var(--accent);text-decoration:none;font-size:13px">← 回全市场组合</a>{% endif %}
     <span class="sp" style="flex:1"></span>
     <span class="muted">数据更新 {{ updated }}</span>
     <form method="post" action="/v/{{ ticker }}/refresh" style="display:inline"><button class="chipbtn">重新拉 SEC 数据</button></form>
   </div>
   {% if error %}<div class="muted" style="color:var(--down);margin-top:6px">上次刷新失败：{{ error }}</div>{% endif %}
+  {% if from_scan %}<div class="muted" style="margin-top:6px">在这里改的假设会存成「我的 DCF」，全市场组合从下一个收盘起就按你的合理价判断买卖。点「恢复自动」就回到自动 DCF。</div>{% endif %}
   {% if v and v.note %}<div class="muted" style="margin-top:6px">注：{{ v.note }}</div>{% endif %}
   {% if v %}
   <div class="stats" style="margin-top:10px">
@@ -170,7 +172,7 @@ function render(inp) {
     $("#bridge").innerHTML = `<tr><th>企业价值</th><th>− 净负债</th><th>= 股权价值</th><th>÷ 股数</th><th>= 每股</th></tr>`
       + `<tr><td>${money(r.ev)}</td><td>${money(r.nd)}</td><td>${money(r.equity)}</td><td>${Math.round(inp.shares)}M</td><td><b>${r.fair == null ? "—" : r.fair.toFixed(2)}</b></td></tr>`;
     $("#wacc-notes").textContent = (W.notes || []).join("；") + ((W.notes || []).length ? "。" : "")
-      + ` 净负债 = 有息负债 ${money(W.debt)} − 现金及投资 ${money(W.cash)}。` + (AUTO.fcff_addback ? ` FCF 利润率已加回税后利息 ${pct(AUTO.fcff_addback)}。` : "");
+      + (W.financial ? "" : ` 净负债 = 有息负债 ${money(W.debt)} − 现金及投资 ${money(W.cash)}。`) + (AUTO.fcff_addback ? ` FCF 利润率已加回税后利息 ${pct(AUTO.fcff_addback)}。` : "");
   }
   const yrs = r.rev.map((_, i) => AUTO.base_year + i + 1), nA = inp.use_path ? AUTO.analyst.length : (inp.analyst || []).length;
   $("#proj").innerHTML = `<tr><th></th>${yrs.map((y, i) => `<th>${y}${i < nA ? "ᵃ" : ""}</th>`).join("")}<th>永续</th></tr>`

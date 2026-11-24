@@ -245,7 +245,7 @@ def test_valuation_flow(rich_client, tmp_path):
     from radar import valuation
     b, fair = _fake_builder()
     conn = db.connect(tmp_path / "r.db")
-    res = valuation.refresh(conn, ["MSFT", "SMH"], NOW, builder=b, shares_of=lambda t: 10.5, beta_of=lambda t: 1.2)
+    res = valuation.refresh(conn, ["MSFT", "SMH"], NOW, builder=b, shares_of=lambda t: 10.5, profile_of=lambda t: {"beta": 1.2, "industry": "Software - Infrastructure"})
     assert res["MSFT"] == "ok" and "CIK" in res["SMH"]
     v = valuation.load(conn, "MSFT")
     a, w = v["data"]["auto"], v["data"]["wacc"]

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_chart.html" import pct, chart_css %}
+{% block title %}模拟交易 · Invest Radar{% endblock %}
+{% block content %}
+{{ chart_css() }}
+<section>
+  <h2>开一个模拟交易账户</h2>
+  <form class="simform" method="post" action="/trade">
+    <label>名字<input name="name" placeholder="我的模拟账户" style="width:12em"></label>
+    <label>虚拟资金<input name="capital" type="number" min="1000" step="1000" value="100000" style="width:9em"></label>
+    <label>单边手续费 (bp)<input name="cost" type="number" min="0" max="200" value="5"></label>
+    <button>开户</button>
+  </form>
+  <div class="muted" style="margin-top:8px">用真实行情、虚拟资金自己下单练习。只做多、不加杠杆，不会真的下单。</div>
+</section>
+{% if accts %}
+<section>
+  <h2>我的账户</h2>
+  <table>
+    <tr><th>账户</th><th>开户</th><th>资金</th><th>最近权益</th><th>收益</th><th></th></tr>
+    {% for x in accts %}{% set a = x.a %}
+    <tr style="{{ '' if a.active else 'opacity:.55' }}"><td><a href="/trade/{{ a.id }}">{{ a.name }}</a></td>
+      <td>{{ a.created[:10] }}</td><td>{{ '{:,.0f}'.format(a.capital) }}</td><td>{{ '{:,.0f}'.format(x.equity) }}</td>
+      <td>{{ pct(x.equity / a.capital - 1, true) }}</td><td>{{ '' if a.active else '已关闭' }}</td></tr>
+    {% endfor %}
+  </table>
+</section>
+{% endif %}
+{% endblock %}

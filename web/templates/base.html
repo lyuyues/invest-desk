@@ -204,7 +204,7 @@
 </style>
 </head>
 {% macro navlinks() %}
-    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('reddit','Reddit','/reddit'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports')] + ledger_nav|default([]) %}
+    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('reddit','Reddit','/reddit'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports'),('trade','模拟交易','/trade'),('sim','回测','/sim'),('paper','策略模拟','/paper')] + ledger_nav|default([]) %}
     <a href="{{ href }}" class="{{ 'on' if active == key else '' }}">{{ label }}</a>
     {% endfor %}
 {% endmacro %}
@@ -379,6 +379,38 @@
     box.hidden = false;
   };
   document.addEventListener("selectionchange", () => { clearTimeout(t); t = setTimeout(update, 120); });
+})();
+</script>
+<style>
+  table.sortable th { cursor: pointer; user-select: none; }
+  table.sortable th:hover { color: var(--ink); }
+  table.sortable th[data-dir]::after { content: attr(data-dir); margin-left: 4px; font-size: 11px; }
+</style>
+<script>
+(() => {
+  // Click a header of table.sortable to sort; numbers start largest-first, click again to flip.
+  // Rows without a value in that column (e.g. ETF rows spanning the columns) always stay at the bottom.
+  const num = t => { const m = t.replace(/,/g, "").replace(/[−–]/g, "-").match(/[-+]?\d+(\.\d+)?/); return m ? +m[0] : null; };
+  const cellAt = (tr, col) => {  // the cell covering column `col`; a colspan>1 cell counts as "no value"
+    let i = 0;
+    for (const c of tr.cells) { const n = c.colSpan || 1; if (col < i + n) return n > 1 ? null : c; i += n; }
+    return null;
+  };
+  document.querySelectorAll("table.sortable").forEach(tb => {
+    const head = tb.rows[0];
+    [...head.cells].forEach((th, col) => th.addEventListener("click", () => {
+      const rows = [...tb.rows].slice(1);
+      const keys = new Map(rows.map(r => { const c = cellAt(r, col), t = c ? c.textContent.trim() : "";
+        return [r, col === 0 ? (t || null) : (t ? num(t) : null)]; }));
+      const asc = th.dataset.dir ? th.dataset.dir === "▼" : col === 0;
+      [...head.cells].forEach(h => delete h.dataset.dir);
+      th.dataset.dir = asc ? "▲" : "▼";
+      rows.sort((a, b) => { const x = keys.get(a), y = keys.get(b);
+        if (x === null || y === null) return (x === null) - (y === null);
+        const d = typeof x === "string" ? x.localeCompare(y) : x - y; return asc ? d : -d; });
+      const body = rows[0] ? rows[0].parentNode : tb; rows.forEach(r => body.appendChild(r));
+    }));
+  });
 })();
 </script>
 </body>

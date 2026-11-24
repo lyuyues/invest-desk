@@ -11,6 +11,8 @@ Jobs (each records a run for the heartbeat):
   heartbeat stale/failed job check           (hourly)
   brief     pre-market daily brief (Claude)  (weekdays 09:25 New York; refreshes edgar + markets first)
   reddit    public subreddit RSS → posts + ticker mentions (every few hours, web scheduler)
+  scan      market-wide valuation portfolios: universe, account steps, rolling DCF refresh
+  paper     step strategy paper accounts + match manual /trade limit/stop orders, snapshot equity (after the close)
 Other: serve, test-push, daily (= prices edgar macro earnings markets heartbeat)
 """
 from __future__ import annotations
@@ -30,7 +32,7 @@ from radar.notify import make_pusher
 
 log = logging.getLogger("radar")
 
-JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles", "reddit"]
+JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles", "reddit", "paper", "scan"]
 DAILY = ["prices", "edgar", "macro", "earnings", "markets", "heartbeat"]
 
 
@@ -68,6 +70,13 @@ def _job_fn(name: str, conn, cfg: Config, now: datetime, push):
         return lambda: jobs.heartbeat_job(conn, cfg, now, push)
     if name == "reddit":
         return lambda: jobs.reddit_job(conn, cfg, now)
+    if name == "paper":
+        from radar import options, paper, trade
+        return lambda: (paper.run_job(conn, now, push) + " | options " + options.run_job(conn, now)
+                        + " | trade " + trade.run_job(conn, now))
+    if name == "scan":
+        from radar import scan
+        return lambda: scan.run_job(conn, now, push)
     if name == "discover":
         def run():
             rows = discovery.discover(conn, cfg.discovery, now, get, fetch_quotes=fetch_quotes)

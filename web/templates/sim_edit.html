@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_chart.html" import chart_css %}
+{% block title %}编辑策略 · Invest Radar{% endblock %}
+{% block content %}
+{{ chart_css() }}
+<style>
+  .ed label.f { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .ed input, .ed select, .ed textarea { font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 8px;
+        border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .ed textarea { min-height: 54px; resize: vertical; }
+  .crow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--line); }
+  .crow input { width: 5.5em; }
+  .crow .lab { font-size: 12px; color: var(--muted); }
+  .crow .x { margin-left: auto; }
+  .side h3 { font-size: 14px; margin: 14px 0 4px; display: flex; gap: 8px; align-items: center; }
+  .side h3 select { font-size: 13px; padding: 2px 6px; }
+  .preview { font-size: 13px; color: var(--muted); margin-top: 6px; }
+</style>
+<section class="ed">
+  <h2>{{ '编辑策略' if sid else '新建策略' }}</h2>
+  <label class="f">名称<input id="name" maxlength="60"></label>
+  <label class="f">备注（这个策略背后的想法）<textarea id="note" maxlength="500"></textarea></label>
+  <div class="side" id="entry"></div>
+  <div class="side" id="exit"></div>
+  <div class="nerr" id="err" style="margin-top:10px"></div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
+    <button class="btn" onclick="save(true)">保存并回测</button>
+    <button class="btn ghost" onclick="save(false)">只保存</button>
+    <a class="btn ghost" href="/sim">取消</a>
+    {% if sid %}<form method="post" action="/sim/strategy/{{ sid }}/delete" style="margin-left:auto"
+      onsubmit="return confirmDel(this)"><button class="btn ghost">删除</button></form>{% endif %}
+  </div>
+  <div class="muted" style="margin-top:12px">买入条件只看行情；止损、止盈、持有天数这类只能放在卖出条件里。所有信号都在收盘判断，下一交易日收盘成交。</div>
+</section>
+<script>
+const TYPES = {{ types_json|safe }};
+const SPEC = {{ spec_json|safe }};
+const SID = {{ sid|tojson }};
+const state = { entry: JSON.parse(JSON.stringify(SPEC.entry)), exit: JSON.parse(JSON.stringify(SPEC.exit)) };
+document.getElementById("name").value = SPEC.name || "";
+document.getElementById("note").value = SPEC.note || "";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const label = c => TYPES[c.type].label.replace(/\{(\w+)\}/g, (_, k) => c[k] ?? "?");
+
+function draw(side) {
+  const b = state[side], el = document.getElementById(side), isEntry = side === "entry";
+  const opts = Object.entries(TYPES).filter(([, t]) => !(isEntry && t.pos));
+  let h = `<h3>${isEntry ? "买入条件" : "卖出条件"}
+    <select onchange="state['${side}'].mode=this.value; draw('${side}')">
+      <option value="all" ${b.mode === "all" ? "selected" : ""}>全部满足</option>
+      <option value="any" ${b.mode === "any" ? "selected" : ""}>任一满足</option></select></h3>`;
+  b.conds.forEach((c, i) => {
+    h += `<div class="crow"><select onchange="setType('${side}',${i},this.value)">` +
+      opts.map(([k, t]) => `<option value="${k}" ${k === c.type ? "selected" : ""}>${esc(t.label.replace(/\{\w+\}/g, "X"))}</option>`).join("") +
+      `</select>` +
+      TYPES[c.type].params.map(p => `<span class="lab">${esc(p.label)}</span><input type="number" step="${p.kind === "int" ? 1 : 0.5}"
+        value="${c[p.name]}" oninput="state['${side}'].conds[${i}]['${p.name}']=+this.value; prev('${side}')">`).join("") +
+      `<button class="chipbtn x" onclick="state['${side}'].conds.splice(${i},1); draw('${side}')">删除</button></div>`;
+  });
+  h += `<div class="crow"><button class="chipbtn" onclick="add('${side}')">＋ 添加条件</button></div>
+        <div class="preview" id="pv-${side}"></div>`;
+  el.innerHTML = h; prev(side);
+}
+function prev(side) {
+  const b = state[side], j = b.mode === "all" ? " 且 " : " 或 ";
+  document.getElementById("pv-" + side).textContent = b.conds.length
+    ? b.conds.map(label).join(j) + (side === "entry" ? " → 次日收盘买入" : " → 次日收盘卖出")
+    : (side === "entry" ? "至少需要一个买入条件" : "没有卖出条件：买入后一直持有");
+}
+function defaults(type) { const c = { type }; TYPES[type].params.forEach(p => c[p.name] = p.default); return c; }
+function setType(side, i, t) { state[side].conds[i] = defaults(t); draw(side); }
+function add(side) { state[side].conds.push(defaults(side === "entry" ? "new_high" : "stop_loss")); draw(side); }
+function confirmDel(f) { f.querySelector("button").textContent = "确认删除？"; if (f.dataset.armed) return true;
+  f.dataset.armed = 1; return false; }
+async function save(go) {
+  const spec = { name: document.getElementById("name").value, note: document.getElementById("note").value,
+                 entry: state.entry, exit: state.exit };
+  const r = await fetch("/sim/strategy", { method: "POST", headers: { "Content-Type": "application/json" },
+                                           body: JSON.stringify({ id: SID, spec }) });
+  const j = await r.json();
+  if (!r.ok) { document.getElementById("err").textContent = j.error || "保存失败"; return; }
+  location.href = go ? "/sim?s=" + encodeURIComponent(j.id) : "/sim";
+}
+draw("entry"); draw("exit");
+</script>
+{% endblock %}

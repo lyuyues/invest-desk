@@ -111,6 +111,48 @@ def _profiles_missing() -> bool:
 
 
 
+def paper_due(now: datetime, last: str | None) -> bool:
+    """Once a day after the New York close (any day: catches up after downtime; weekends are no-ops)."""
+    ny = now.astimezone(NY)
+    if ny.time() < time(16, 45):
+        return False
+    return last is None or datetime.fromisoformat(last).astimezone(NY).date() < ny.date()
+
+
+def scan_due(now: datetime, last: str | None, behind: bool) -> bool:
+    """After each close (like paper); also every ~70 min while the first DCF pass over the universe is incomplete."""
+    ny = now.astimezone(NY)
+    if ny.time() >= time(16, 45):
+        prev = datetime.fromisoformat(last).astimezone(NY) if last else None
+        if prev is None or prev.date() < ny.date() or prev.time() < time(16, 45):   # no after-close run yet today
+            return True
+    return behind and (last is None or (now - datetime.fromisoformat(last)).total_seconds() > 70 * 60)
+
+
+def _scan_behind() -> bool:
+    """Only while a market-wide portfolio account exists and fair values are still missing."""
+    from radar import scan
+    cfg = load_config()
+    conn = db.connect(cfg.db_path)
+    try:
+        if not any(a["active"] for a in scan.accounts(conn)):
+            return False
+        c = scan.coverage(conn)
+        return c["universe"] == 0 or c["valued"] < c["universe"] * 0.97
+    finally:
+        conn.close()
+
+
+def any_port_accounts() -> bool:
+    from radar import scan
+    cfg = load_config()
+    conn = db.connect(cfg.db_path)
+    try:
+        return any(a["active"] for a in scan.accounts(conn))
+    finally:
+        conn.close()
+
+
 def reddit_due(now: datetime, last: str | None, every_hours: float) -> bool:
     return last is None or (now - datetime.fromisoformat(last)).total_seconds() >= every_hours * 3600
 
@@ -148,6 +190,17 @@ async def loop() -> None:
                 state["reddit_at"] = now  # ≤1 start per 30 min even if the job dies before recording a run
                 log.info("starting reddit fetch")
                 asyncio.create_task(spawn("reddit"))
+            if ("paper" not in state.get("jobs", set()) and paper_due(now, _last_run("paper"))
+                    and (now - state.get("paper_at", now - timedelta(hours=1))).total_seconds() > 1800):
+                state["paper_at"] = now
+                log.info("stepping paper accounts")
+                asyncio.create_task(spawn("paper"))
+            if ("scan" not in state.get("jobs", set()) and any_port_accounts()
+                    and scan_due(now, _last_run("scan"), _scan_behind())
+                    and (now - state.get("scan_at", now - timedelta(hours=2))).total_seconds() > 3600):
+                state["scan_at"] = now
+                log.info("market-wide scan")
+                asyncio.create_task(spawn("scan"))
             if not state.get("valuing") and valuation_due(now, _last_valuation_run()):
                 log.info("starting weekly valuation refresh")
                 asyncio.create_task(run_valuation())

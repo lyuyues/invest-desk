@@ -120,13 +120,28 @@ def fix_share_units(auto: dict, implied: float | None) -> str | None:
     return f"SEC 股数 {sec:,.0f}M 与报价口径不符（如 A/B 股），改用市值/股价推算的 {implied:,.0f}M"
 
 
-def apply_wacc(conn: sqlite3.Connection, ticker: str, auto: dict, hist: dict, meta: dict, beta_of) -> dict:
+def latest_price(conn: sqlite3.Connection, ticker: str) -> float | None:
+    """Last tracked quote, else the market-wide scan's last close (untracked names)."""
+    q = conn.execute("SELECT price FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (ticker,)).fetchone()
+    if q:
+        return q["price"]
+    try:
+        u = conn.execute("SELECT price FROM scan_universe WHERE ticker=?", (ticker,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return u["price"] if u else None
+
+
+def apply_wacc(conn: sqlite3.Connection, ticker: str, auto: dict, hist: dict, meta: dict, profile_of,
+               price: float | None = None) -> dict:
     """Discount at the company's WACC on free cash flow to the firm, and bridge EV → equity with net debt.
     Mutates `auto` (rr, fcf_margin, net_debt; the engine's own values kept as engine_rr / engine_fcf_margin)."""
-    q = conn.execute("SELECT price FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (ticker,)).fetchone()
+    if price is None:
+        price = latest_price(conn, ticker)
     rf, rf_date = waccmod.latest_rf(conn)
-    w = waccmod.compute(hist["rows"], hist["cols"], q["price"] if q else None, auto.get("shares"), beta_of(ticker), rf,
-                        sector=meta.get("Sector"))
+    prof = profile_of(ticker) or {}
+    w = waccmod.compute(hist["rows"], hist["cols"], price, auto.get("shares"), prof.get("beta"), rf,
+                        sector=meta.get("Sector"), industry=prof.get("industry"))
     w["rf_date"] = rf_date
     add = 0.0 if w["financial"] else waccmod.interest_addback_margin(hist["rows"], w["tax"])
     auto.update(engine_rr=auto["rr"], engine_fcf_margin=auto["fcf_margin"], rr=round(w["wacc"], 4),
@@ -134,30 +149,38 @@ def apply_wacc(conn: sqlite3.Connection, ticker: str, auto: dict, hist: dict, me
     return w
 
 
+def compute(conn: sqlite3.Connection, t: str, builder, shares_of=market_shares, profile_of=waccmod.market_profile,
+            price: float | None = None, quarterly: bool = True) -> dict:
+    """Run the engine for one ticker → the stored valuation JSON (raises on failure)."""
+    hist, proj, meta = builder.build_dcf(t)
+    q = None
+    if quarterly:
+        try:
+            q = _table(builder.build_quarterly_table(t, num_quarters=10))
+        except Exception as e:  # quarterly is a nice-to-have
+            log.warning("quarterly failed %s: %s", t, e)
+    auto = auto_inputs(hist, proj, meta)
+    note = fix_share_units(auto, shares_of(t))
+    data = {"hist": _table(hist), "proj": _table(proj), "quarterly": q,
+            "meta": {k.strip(): _clean(v) for k, v in meta.items()}, "auto": auto, "note": note}
+    if auto["rr"] <= auto["terminal"]:
+        raise ValueError("引擎回报率不大于永续增长率")
+    data["wacc"] = apply_wacc(conn, t, auto, data["hist"], data["meta"], profile_of, price)
+    if auto["rr"] <= auto["terminal"] + 0.01:  # keep the Gordon formula sane
+        data["wacc"]["notes"].append(f"WACC {auto['rr']:.1%} 太接近永续增长率，折现率按永续增长 + 1% 下限")
+        auto["rr"] = round(auto["terminal"] + 0.01, 4)
+    return data
+
+
 def refresh(conn: sqlite3.Connection, tickers: list[str], now: datetime, builder=None,
-            shares_of=market_shares, beta_of=waccmod.market_beta) -> dict[str, str]:
+            shares_of=market_shares, profile_of=waccmod.market_profile) -> dict[str, str]:
     """Run the engine for each ticker; store results (or the error). Returns ticker -> 'ok' / error."""
     if builder is None:
         from radar.dcf import builder
     out = {}
     for t in tickers:
         try:
-            hist, proj, meta = builder.build_dcf(t)
-            try:
-                quarterly = _table(builder.build_quarterly_table(t, num_quarters=10))
-            except Exception as e:  # quarterly is a nice-to-have
-                log.warning("quarterly failed %s: %s", t, e)
-                quarterly = None
-            auto = auto_inputs(hist, proj, meta)
-            note = fix_share_units(auto, shares_of(t))
-            data = {"hist": _table(hist), "proj": _table(proj), "quarterly": quarterly,
-                    "meta": {k.strip(): _clean(v) for k, v in meta.items()}, "auto": auto, "note": note}
-            if auto["rr"] <= auto["terminal"]:
-                raise ValueError("引擎回报率不大于永续增长率")
-            data["wacc"] = apply_wacc(conn, t, auto, data["hist"], data["meta"], beta_of)
-            if auto["rr"] <= auto["terminal"] + 0.01:  # keep the Gordon formula sane
-                data["wacc"]["notes"].append(f"WACC {auto['rr']:.1%} 太接近永续增长率，折现率按永续增长 + 1% 下限")
-                auto["rr"] = round(auto["terminal"] + 0.01, 4)
+            data = compute(conn, t, builder, shares_of, profile_of)
             conn.execute("INSERT OR REPLACE INTO valuations VALUES (?,?,?,NULL)",
                          (t, _ts(now), json.dumps(data, ensure_ascii=False)))
             out[t] = "ok"
@@ -202,6 +225,18 @@ def merged(auto: dict, mine: dict | None) -> dict:
     else:
         inp["use_path"] = True  # untouched → exactly the engine's own path
     return inp
+
+
+def fair_value(conn: sqlite3.Connection, ticker: str) -> float | None:
+    """Current DCF fair value per share (your own inputs if set, else the automatic one); None if unavailable."""
+    v = load(conn, ticker)
+    if not v or not v["data"]:
+        return None
+    try:
+        fair = project(merged(v["data"]["auto"], v["mine"] or None))["fair"]
+    except (ValueError, ZeroDivisionError, KeyError):
+        return None
+    return fair if fair and fair > 0 else None
 
 
 def summary(conn: sqlite3.Connection, tickers: list[str]) -> list[dict]:

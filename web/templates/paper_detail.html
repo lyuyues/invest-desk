@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_chart.html" import svgchart, pct, chart_css %}
+{% block title %}模拟盘 #{{ a.id }} · Invest Radar{% endblock %}
+{% block content %}
+{{ chart_css() }}
+<section>
+  <h2><a href="/paper" style="color:inherit">模拟盘</a> #{{ a.id }} · {{ a.name }} · <a href="/t/{{ a.ticker }}">{{ a.ticker }}</a>
+    {% if not a.active %}<span class="chip">已停止</span>{% endif %}</h2>
+  <div class="rule"><b>买入：</b>{{ desc.entry }}</div>
+  <div class="rule"><b>卖出：</b>{{ desc.exit }}</div>
+  {% set eqv = cur.equity if cur else a.capital %}{% set hv = cur.hold if cur else a.capital %}
+  <div class="stats">
+    <div>权益<b>{{ '{:,.0f}'.format(eqv) }}</b></div>
+    <div>收益<b>{{ pct(eqv / a.capital - 1, true) }}</b></div>
+    <div>同期买入持有<b>{{ pct(hv / a.capital - 1, true) }}</b></div>
+    <div>状态<b>{% if a.shares > 0 %}持仓 {{ '%.2f' % a.shares }} 股{% else %}空仓{% endif %}</b></div>
+    <div>本金 / 成本<b>{{ '{:,.0f}'.format(a.capital) }} / {{ '%.0f' % (a.cost * 10000) }}bp</b></div>
+    <div>运行<b>{{ n_days }} 个交易日</b></div>
+  </div>
+  {% if uses_val %}
+  <div class="verdict" style="margin-top:10px">{% if fair %}当前 DCF 合理价 <b>{{ '%.2f' % fair }}</b>{% if cur %}，按最近收盘 {{ '%.2f' % cur.price }} 算上涨空间 <b>{{ '%+.0f' % ((fair / cur.price - 1) * 100) }}%</b>{% endif %}。
+    <a href="/v/{{ a.ticker }}">看估值 →</a> 合理价随估值面板更新（包括你自己改的假设），每天收盘用当时的合理价判断。
+    {% else %}<b>{{ a.ticker }} 现在没有 DCF 合理价</b>，估值条件不会触发。{% endif %}</div>
+  {% endif %}
+  <div class="muted" style="margin-top:8px">开始于 {{ a.start }}，已结算到 {{ a.last_date or '—（等待第一个收盘）' }}。</div>
+  {% if a.pending %}
+  <div class="verdict good" style="margin-top:10px">已触发<b>{{ '买入' if a.pending == 'buy' else '卖出' }}</b>信号：{{ a.pending_why }}。将在下一交易日收盘成交。</div>
+  {% endif %}
+  {% if live %}
+  <div class="verdict" style="margin-top:10px">盘中预估：现价 {{ '%.2f' % live.price }}，如果今天按这个价格收盘 →
+    {% if live.signal %}<b>会触发{{ '买入' if live.signal == 'buy' else '卖出' }}</b>（{{ live.why }}）{% else %}不触发信号（{{ '继续持有' if live.holding else '继续空仓' }}）{% endif %}</div>
+  {% elif live_err %}<div class="muted">盘中预估失败：{{ live_err }}</div>{% endif %}
+  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+    {% if a.active %}
+    <form method="post" action="/paper/{{ a.id }}/refresh"><button class="btn ghost">立即结算</button></form>
+    <form method="post" action="/paper/{{ a.id }}/stop" onsubmit="if(this.dataset.armed)return true;this.dataset.armed=1;this.querySelector('button').textContent='确认停止？';return false"><button class="btn ghost">停止</button></form>
+    {% endif %}
+    <a class="btn ghost" href="/sim?ticker={{ a.ticker }}{% if a.strategy_id %}&s={{ a.strategy_id }}{% endif %}">回测这只股票</a>
+  </div>
+</section>
+
+{% if eq %}
+<section>
+  <h2>权益 vs 买入持有</h2>
+  {{ svgchart(eq) }}
+</section>
+<section>
+  <h2>{{ a.ticker }} 价格与成交</h2>
+  {{ svgchart(price_chart, false) }}
+  <div class="muted">▲ 买入　▼ 卖出</div>
+</section>
+{% else %}
+<section class="muted">至少两个收盘之后才会出现曲线。</section>
+{% endif %}
+
+<section>
+  <h2>成交记录</h2>
+  {% if fills %}
+  <div class="scroll"><table>
+    <tr><th>日期</th><th>方向</th><th>价格</th><th>股数</th><th>手续费</th><th>原因</th></tr>
+    {% for f in fills|reverse %}
+    <tr><td>{{ f.date }}</td><td class="{{ 'up' if f.side == 'buy' else 'down' }}">{{ '买入' if f.side == 'buy' else '卖出' }}</td>
+      <td>{{ '%.2f' % f.price }}</td><td>{{ '%.2f' % f.shares }}</td><td>{{ '%.2f' % f.fee }}</td><td class="l muted">{{ f.reason }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<div class="muted">还没有成交。</div>{% endif %}
+</section>
+<section class="muted" style="font-size:13px">纸面交易，不会真的下单；不计分红；拆股需要手动处理。</section>
+{% endblock %}
