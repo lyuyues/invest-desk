@@ -1,6 +1,6 @@
-# AI Stock Radar
+# Invest Desk
 
-**A self-hosted AI stock and macro monitoring dashboard.** It watches your holdings and candidates, SEC filings and insider trades, macro data and prediction markets; pushes alerts to your phone when something moves; and uses Claude to write a pre-market daily brief, earnings and 8-K summaries, and a weekly report.
+**A self-hosted investment desk.** It watches your holdings and candidates, SEC filings and insider trades, macro data and prediction markets; pushes alerts to your phone when something moves; and uses Claude to write a pre-market daily brief, earnings and 8-K summaries, and a weekly report.
 
 ![Overview: Fed expectations, alerts, holdings and watchlist](docs/screenshots/overview.png)
 
@@ -68,7 +68,7 @@ flowchart LR
 Requires Python 3.12+.
 
 ```bash
-git clone https://github.com/lyuyues/ai-stock-radar.git && cd ai-stock-radar
+git clone https://github.com/lyuyues/invest-desk.git && cd invest-desk
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 cp .env.example .env
 # 1) set SEC_USER_AGENT in .env, e.g. "my-radar you@example.com" (SEC requires contact details)
@@ -126,7 +126,7 @@ On your own computer, run `python -m radar <job>` from cron or launchd; `python 
 `deploy/install.sh` (Ubuntu / Debian) creates an `invest` system user, puts the code in `/opt/invest-radar`, builds the venv, installs the systemd timers and web service, and runs the first data load.
 
 ```bash
-git clone https://github.com/lyuyues/ai-stock-radar.git ~/invest-radar
+git clone https://github.com/lyuyues/invest-desk.git ~/invest-radar
 cd ~/invest-radar && cp .env.example .env && nano .env
 bash deploy/install.sh
 ```
