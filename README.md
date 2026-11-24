@@ -1,31 +1,40 @@
-# AI Stock Radar · 投资雷达
+# AI Stock Radar
 
-**自托管的 AI 股票 / 宏观监控面板。** 盯住你的持仓和潜在标的、SEC 公告和内部人交易、宏观数据和预测市场；异动时推送到手机；用 Claude 写开盘前日报、财报摘要、8-K 摘要和周报。
+**A self-hosted AI stock and macro monitoring dashboard.** It watches your holdings and candidates, SEC filings and insider trades, macro data and prediction markets; pushes alerts to your phone when something moves; and uses Claude to write a pre-market daily brief, earnings and 8-K summaries, and a weekly report.
 
-*Self-hosted AI stock & macro monitoring dashboard — holdings alerts, SEC filings & insider trades, DCF valuation, earnings calendar, prediction markets (Kalshi / Polymarket), and Claude-written daily & weekly reports. [English summary below](#english).*
+![Overview: Fed expectations, alerts, holdings and watchlist](docs/screenshots/overview.png)
 
-> ⚠️ 个人项目，仅供学习研究，**不构成任何投资建议**。数据来自公开免费来源，可能延迟或出错。按现状提供（MIT），不承诺维护。
+| Ticker page | Valuation (DCF) | Macro |
+|---|---|---|
+| ![Ticker page](docs/screenshots/ticker.png) | ![Valuation](docs/screenshots/valuation.png) | ![Macro](docs/screenshots/macro.png) |
+
+*Screenshots use a sample watchlist and public market data.*
+
+> ⚠️ A personal project for learning and research. **It is not investment advice.** Data comes from free public sources and may be delayed or wrong. Provided as is (MIT), with no promise of maintenance.
 
 ---
 
-## 它能做什么
+## What it does
 
-| 页面 | 内容 |
+| Page | Content |
 |---|---|
-| **总览** | 持仓 / 关注列表：价格、日涨跌、周涨跌、距 52 周高点、迷你走势；最近的提醒；网页上直接增删标的 |
-| **日报** | 每个交易日开盘前（美东 9:25）自动拉盘前数据：股指期货、VIX、10 年期利率、美元、原油、黄金、BTC、每只持仓的盘前价，加上隔夜 8-K 和当天财报 → Claude 写成 1–2 分钟能读完的日报 |
-| **宏观** | FRED 宏观序列（CPI、失业率、利差等）；Kalshi / Polymarket 预测市场，含市场隐含的 Fed 利率路径和会后对比 |
-| **发现** | 每周三个渠道找候选：① 量化筛选 ② 主题股票池里“好公司打折” ③ 聪明钱（OpenInsider 集体买入、著名基金 13F 新建仓/加仓）；每只附 DCF 估值、中文公司简介和 Claude 的“值得看 / 风险”点评；筛选条件网页可改 |
-| **估值** | DCF：SEC 财报 + 分析师收入预期，增长率线性收敛到永续；网页上改假设实时重算，带敏感性表和历史财务 |
-| **财报** | 即将发布的财报日历（近 4 季超预期次数）、近期财报的股价反应；Claude 汇总每次财报并标记重要度；网页增删标的 |
-| **逻辑** | 每只股票的买入逻辑、关键指标、逻辑破坏条件，网页编辑；日报 / 周报 / 助手都会参考 |
-| **周报** | 每周日 Claude 汇总：持仓异动、8-K、内部人交易、宏观与预测市场变化、候选池 |
-| **个股页** | 价格走势、8-K（含 Claude 一句话摘要）、内部人买卖、历次财报 |
-| **助手** | 页面右侧的聊天，自动带上你正在看的页面数据，可联网搜索 |
+| **Overview** | Holdings and watchlist: price, daily and weekly change, distance from the 52-week high, sparklines; recent alerts; add or remove tickers in the browser |
+| **Daily brief** | Before each US trading day (9:25 ET) it collects index futures, VIX, the 10-year yield, the dollar, oil, gold, BTC, each holding's pre-market price, overnight 8-Ks and today's earnings, and Claude turns them into a brief you can read in 1–2 minutes |
+| **Macro** | FRED series (CPI, unemployment, spreads, …); Kalshi / Polymarket prediction markets, including the market-implied Fed path and post-meeting comparison |
+| **Discover** | Three weekly sources of candidates: ① a quant screen ② "good companies on sale" in themed baskets ③ smart money (OpenInsider cluster buys, new positions and adds in well-known 13F funds); each with a DCF value, a company profile and Claude's "worth a look / risks" review; screen settings are editable in the browser |
+| **Valuation** | DCF from SEC financials and analyst revenue estimates, with growth converging linearly to the terminal rate; edit assumptions in the browser and it recalculates, with sensitivity tables and historical financials |
+| **Earnings** | Upcoming earnings calendar (beats in the last 4 quarters), price reaction to recent reports; Claude summarizes each report and tags its importance |
+| **Theses** | Per-stock buy thesis, key metrics and thesis-breaking conditions, edited in the browser; the daily brief, weekly report and assistant all use them |
+| **Paper trading** | Simulated accounts for stocks and options with orders, positions and P&L; simple backtests |
+| **Notes** | Your own learning, earnings and other notes, optionally linked to a ticker |
+| **Reddit** | What investing subreddits are discussing about your tickers |
+| **Weekly report** | Every Sunday Claude summarizes moves in your holdings, 8-Ks, insider trades, macro and prediction-market changes, and the candidate pool |
+| **Ticker page** | Price chart, 8-Ks (each with a one-line Claude summary), insider trades, past earnings |
+| **Assistant** | A chat on the right of every page that sees the data you are looking at and can search the web |
 
-**手机推送（[ntfy](https://ntfy.sh)）**：持仓单日大涨大跌、穿越价位线、8-K 重大事项（并购、破产、高管变动、财报重述…）、内部人大额买入 / 集体买入、财报发布、预测市场概率 24h 内大幅变化、VIX > 30、收益率曲线倒挂、任务失败。规则都在 `config/rules.yaml`，带静默时段和去重。
+**Phone alerts ([ntfy](https://ntfy.sh))**: big daily moves in holdings, price-level crossings, material 8-K items (M&A, bankruptcy, executive changes, restatements, …), large insider buys and cluster buys, earnings releases, big 24-hour changes in prediction-market odds, VIX > 30, an inverted yield curve, and failed jobs. All rules are in `config/rules.yaml`, with quiet hours and de-duplication.
 
-## 架构
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -35,76 +44,76 @@ flowchart LR
   K[Kalshi / Polymarket] --> C
   O[OpenInsider] --> C
   C[collectors] --> DB[(SQLite)]
-  DB --> R[提醒规则] --> N[ntfy 推送]
-  DB --> V[DCF 估值] --> DB
-  DB --> L[Claude：日报 / 周报 / 摘要] --> DB
-  DB --> W[FastAPI 面板 + 内置调度器]
+  DB --> R[alert rules] --> N[ntfy push]
+  DB --> V[DCF valuation] --> DB
+  DB --> L[Claude: daily / weekly / summaries] --> DB
+  DB --> W[FastAPI dashboard + built-in scheduler]
 ```
 
-- **纯 Python**：FastAPI + Jinja 服务端渲染（手机友好），SQLite 单文件，没有前端构建。
-- **确定性的部分不用 LLM**：价格、阈值、提醒全部是规则；Claude 只负责“读完写总结”。
-- **Claude 是可选的**：不配置也能用，相关页面显示原始数据。
+- **Plain Python**: FastAPI with server-rendered Jinja (works well on a phone), a single SQLite file, no frontend build.
+- **No LLM for the deterministic parts**: prices, thresholds and alerts are all rules; Claude only reads and summarizes.
+- **Claude is optional**: without it the pages show the raw data.
 
-## 快速开始（本机，5 分钟）
+## Quick start (your own computer, 5 minutes)
 
-需要 Python 3.12+。
+Requires Python 3.12+.
 
 ```bash
 git clone https://github.com/lyuyues/ai-stock-radar.git && cd ai-stock-radar
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 cp .env.example .env
-# 1) .env 里填 SEC_USER_AGENT，例如 "my-radar you@example.com"（SEC 要求带联系方式）
-# 2) 编辑 config/watchlist.yaml，放你的持仓和关注（之后也可以在网页上改）
-.venv/bin/python -m radar daily    # 第一次拉数据：价格+1年历史、SEC、宏观、财报、预测市场
-.venv/bin/python -m radar serve    # 打开 http://127.0.0.1:8770
+# 1) set SEC_USER_AGENT in .env, e.g. "my-radar you@example.com" (SEC requires contact details)
+# 2) edit config/watchlist.yaml with your holdings and watchlist (you can also change them in the browser later)
+.venv/bin/python -m radar daily    # first data load: prices + 1 year of history, SEC, macro, earnings, prediction markets
+.venv/bin/python -m radar serve    # open http://127.0.0.1:8770
 ```
 
-跑测试：`.venv/bin/python -m pytest -q`（不联网）
+Run the tests: `.venv/bin/python -m pytest -q` (no network needed).
 
-## 配置
+## Configuration
 
-| 文件 | 作用 |
+| File | Purpose |
 |---|---|
-| `.env` | `SEC_USER_AGENT`（必填）、`NTFY_TOPIC` / `NTFY_SERVER`（推送）、`RADAR_PUBLIC_URL`（推送里的链接）、`CLAUDE_CMD`（Claude 功能） |
-| `config/watchlist.yaml` | 持仓、关注、价位线（网页上增删的标的存在数据库里，优先级更高） |
-| `config/rules.yaml` | 提醒规则、静默时段、心跳 |
-| `config/macro.yaml` | FRED 序列、预测市场 |
-| `config/discovery.yaml` | 发现页的筛选条件、主题股票池、13F 基金（网页「发现 → 筛选设置」也能改） |
+| `.env` | `SEC_USER_AGENT` (required), `NTFY_TOPIC` / `NTFY_SERVER` (push), `RADAR_PUBLIC_URL` (links in pushes), `CLAUDE_CMD` (Claude features) |
+| `config/watchlist.yaml` | Holdings, watchlist, price levels (tickers added in the browser are stored in the database and take precedence) |
+| `config/rules.yaml` | Alert rules, quiet hours, heartbeat |
+| `config/macro.yaml` | FRED series, prediction markets |
+| `config/discovery.yaml` | Discover screen, themed baskets, 13F funds (also editable under Discover → Screen settings) |
 
-### Claude 功能（可选）
+### Claude features (optional)
 
-日报、财报摘要、8-K 摘要、候选点评、公司简介、周报和右侧助手通过 [Claude Code](https://claude.com/claude-code) 命令行（`claude -p`）调用。装好并登录后，在 `.env` 里加：
+The daily brief, earnings and 8-K summaries, candidate reviews, company profiles, the weekly report and the assistant call the [Claude Code](https://claude.com/claude-code) CLI (`claude -p`). Once it is installed and logged in, add to `.env`:
 
 ```
 CLAUDE_CMD=claude -p --output-format text --allowedTools WebSearch,WebFetch
 ```
 
-请按你自己账号的使用条款使用；要给多人用，请改用按量计费的 API 并设好额度，不要共享个人订阅。
+Follow the terms of your own account. To serve several people, use the pay-as-you-go API with spending limits instead of sharing a personal subscription.
 
-### 手机推送
+### Phone alerts
 
-手机装 ntfy App，订阅一个**只有你知道的随机 topic 名**，写进 `.env` 的 `NTFY_TOPIC`，然后 `python -m radar test-push` 测试。
+Install the ntfy app, subscribe to a **random topic name that only you know**, put it in `NTFY_TOPIC` in `.env`, then test with `python -m radar test-push`.
 
-## 定时任务
+## Scheduled jobs
 
-| 任务 | 命令 | 默认时间（`deploy/systemd/*.timer`，太平洋时间） |
+| Job | Command | Default time (`deploy/systemd/*.timer`, Pacific time) |
 |---|---|---|
-| 价格 + 价格提醒 | `prices` | 美股交易时段每 30 分钟 |
-| SEC 8-K / Form 4 + 摘要 | `edgar` | 每天收盘后 |
-| 财报 + 财报摘要 | `earnings` | 每天收盘后 |
-| FRED 宏观 | `macro` | 每天 |
-| 预测市场 | `markets` | 每小时 |
-| 发现候选 | `discover` | 每周日 |
-| 周报 | `weekly` | 每周日（发现之后） |
-| 健康检查 | `heartbeat` | 每小时 |
-| 开盘前日报 | `brief` | 网页服务内置调度：交易日美东 9:25 |
-| 估值刷新 | `valuation` | 内置调度：每周六 |
+| Prices + price alerts | `prices` | Every 30 minutes during US market hours |
+| SEC 8-K / Form 4 + summaries | `edgar` | Daily after the close |
+| Earnings + summaries | `earnings` | Daily after the close |
+| FRED macro | `macro` | Daily |
+| Prediction markets | `markets` | Hourly |
+| Discover candidates | `discover` | Sundays |
+| Weekly report | `weekly` | Sundays (after Discover) |
+| Health check | `heartbeat` | Hourly |
+| Pre-market daily brief | `brief` | Built-in scheduler: trading days 9:25 ET |
+| Valuation refresh | `valuation` | Built-in scheduler: Saturdays |
 
-本机可以用 cron / launchd 调 `python -m radar <任务>`；`python -m radar daily` 一次跑完每日任务。服务器用下面的 systemd。
+On your own computer, run `python -m radar <job>` from cron or launchd; `python -m radar daily` runs all daily jobs at once. On a server use the systemd units below.
 
-## 部署到服务器
+## Deploying to a server
 
-`deploy/install.sh`（Ubuntu / Debian）会：建系统用户 `invest`、把代码放到 `/opt/invest-radar`、建 venv、装 systemd 定时器和网页服务、跑第一次数据加载。
+`deploy/install.sh` (Ubuntu / Debian) creates an `invest` system user, puts the code in `/opt/invest-radar`, builds the venv, installs the systemd timers and web service, and runs the first data load.
 
 ```bash
 git clone https://github.com/lyuyues/ai-stock-radar.git ~/invest-radar
@@ -112,43 +121,26 @@ cd ~/invest-radar && cp .env.example .env && nano .env
 bash deploy/install.sh
 ```
 
-> 🔒 **面板本身没有登录功能。** 不要直接暴露到公网。推荐 Cloudflare Tunnel + Cloudflare Access（只允许你的邮箱），或者 Tailscale / VPN / 带认证的反向代理。
+> 🔒 **The dashboard has no login of its own.** Never expose it directly to the internet. Use Cloudflare Tunnel + Cloudflare Access (allow only your email), or Tailscale / a VPN / a reverse proxy with authentication.
 
-## 目录结构
+## Layout
 
 ```
-radar/              采集、提醒、估值、Claude 生成（CLI 入口：python -m radar）
-  collectors/       prices（Yahoo）/ edgar（SEC）/ macro（FRED、Kalshi、Polymarket、财报）
-  alerts/           规则 → 触发 → 去重 / 静默
-  dcf/              DCF 引擎
-  prompts/          日报 / 周报 / 财报摘要提示词（改这里就能改报告风格）
-web/                FastAPI 路由、Jinja 模板、内置调度器
+radar/              collection, alerts, valuation, Claude writing (CLI: python -m radar)
+  collectors/       prices (Yahoo) / edgar (SEC) / macro (FRED, Kalshi, Polymarket, earnings)
+  alerts/           rules → trigger → de-duplicate / quiet hours
+  dcf/              DCF engine
+  prompts/          daily / weekly / earnings prompts (edit these to change the report style)
+web/                FastAPI routes, Jinja templates, built-in scheduler
 config/             watchlist / rules / macro / discovery
-deploy/             systemd 单元、安装脚本
-tests/              pytest（不联网）
+deploy/             systemd units, install script
+tests/              pytest (no network)
 ```
 
 ## FAQ
 
-- **要花钱吗？** 数据源都免费；Claude 功能用你自己的 Claude 账号。
-- **支持港股 / 其他市场吗？** 价格和估值走 Yahoo，代码格式正确（如 `0700.HK`）一般能用；SEC、13F、内部人交易只覆盖美股。
-- **报告能改成英文吗？** 改 `radar/prompts/*.md` 里的语言要求即可；网页界面目前是中文。
-
----
-
-<a id="english"></a>
-## English summary
-
-AI Stock Radar is a self-hosted, single-user dashboard for long-term investors:
-
-- **Watch** holdings and a watchlist (prices, moves, distance from the 52-week high) with rule-based push alerts via ntfy.
-- **Filings & insiders**: SEC 8-K items and Form 4 open-market buys / cluster buys; each 8-K summarized by Claude.
-- **Macro**: FRED series and Kalshi / Polymarket odds, including the market-implied Fed path.
-- **Discover** candidates weekly from a quant screen, themed baskets trading below their highs, insider cluster buys and 13F adds — each with a DCF value and a short Claude review.
-- **Valuation**: an editable DCF (SEC financials + analyst revenue estimates) with sensitivity tables.
-- **Earnings**: calendar, price reaction, and a Claude summary with an importance tag.
-- **Reports**: a pre-market daily brief and a weekly report written by Claude, plus a page-aware chat assistant.
-
-Stack: Python 3.12, FastAPI + Jinja, SQLite, systemd timers. Claude features shell out to the Claude Code CLI (`claude -p`) and are optional. The UI and reports are in Chinese; prompts live in `radar/prompts/` if you want another language. Quick start and deployment commands are above.
+- **Does it cost anything?** All data sources are free; Claude features use your own Claude account.
+- **Other markets?** Prices and valuation come from Yahoo, so correctly formatted tickers (e.g. `0700.HK`) usually work; SEC, 13F and insider data cover US stocks only.
+- **Reports in another language?** Change the language instructions in `radar/prompts/*.md`.
 
 **Not investment advice.** MIT licensed.

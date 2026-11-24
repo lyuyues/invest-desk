@@ -162,18 +162,18 @@ def client(tmp_path, monkeypatch):
 def test_sim_page(client):
     r = client.get("/sim?ticker=spy&s=p:trend&s=p:chase&s=p:dip")
     assert r.status_code == 200
-    assert "趋势跟随" in r.text and "追涨杀跌" in r.text and "<polyline" in r.text and "样本外" in r.text
+    assert "Trend following" in r.text and "Chase and dump" in r.text and "<polyline" in r.text and "Out-of-sample" in r.text
 
 
 def test_strategy_editor_roundtrip(client):
     assert client.get("/sim/edit?src=p:chase").status_code == 200
     bad = client.post("/sim/strategy", json={"spec": {"entry": {"conds": []}}})
-    assert bad.status_code == 400 and "买入条件" in bad.json()["error"]
-    ok = client.post("/sim/strategy", json={"spec": {"name": "我的", "entry": {"mode": "all", "conds": [
+    assert bad.status_code == 400 and "entry condition" in bad.json()["error"]
+    ok = client.post("/sim/strategy", json={"spec": {"name": "Mine", "entry": {"mode": "all", "conds": [
         {"type": "above_ma", "n": 50}]}, "exit": {"mode": "any", "conds": [{"type": "trailing", "pct": 12}]}}})
     sid = ok.json()["id"]
     r = client.get(f"/sim?s={sid}")
-    assert "我的" in r.text and "移动止盈" in r.text
+    assert "Mine" in r.text and "trailing take-profit" in r.text
     assert client.get(f"/sim/edit?id={sid}").status_code == 200
 
 
@@ -183,10 +183,10 @@ def test_paper_pages(client):
     assert r.status_code == 303
     loc = r.headers["location"]
     page = client.get(loc)
-    assert page.status_code == 200 and "SPY" in page.text and "200 日均线" in page.text
+    assert page.status_code == 200 and "SPY" in page.text and "200-day MA" in page.text
     assert "SPY" in client.get("/paper").text
     assert client.post(loc + "/stop", follow_redirects=False).status_code == 303
-    assert "已停止" in client.get(loc).text
+    assert "Stopped" in client.get(loc).text
 
 
 def test_valuation_conditions(tmp_path, monkeypatch):
@@ -194,7 +194,7 @@ def test_valuation_conditions(tmp_path, monkeypatch):
     assert backtest.uses_valuation(sp) and not backtest.uses_valuation(backtest.PRESETS["p:trend"])
     s = Series([date(2026, 1, 1), date(2026, 1, 2)], [40.0, 96.0], fair=100.0)
     sig, why = backtest.decide(sp, s, 0, Pos())                          # upside +150% → buy
-    assert sig == "buy" and "合理价 100.00" in why
+    assert sig == "buy" and "fair value 100.00" in why
     assert backtest.decide(sp, s, 1, Pos(True, 40, 96, 1))[0] == "sell"   # upside +4% → sell
     assert backtest.decide(sp, Series(s.dates, s.c), 0, Pos())[0] is None  # no fair value → never fires
     with pytest.raises(ValueError):
@@ -204,7 +204,7 @@ def test_valuation_conditions(tmp_path, monkeypatch):
     from radar import valuation
     monkeypatch.setattr(valuation, "fair_value", lambda c, t: {"AAA": 100.0}.get(t))
     st = {"id": "p:value", "spec": sp}
-    with pytest.raises(ValueError, match="没有 DCF"):
+    with pytest.raises(ValueError, match="no DCF"):
         paper.open_account(conn, st, "ZZZ", 1000, 0.0, _ny(date(2026, 1, 1), 20))
     d = [date(2026, 1, 5) + timedelta(days=i) for i in range(4)]
     c = [45.0, 48.0, 97.0, 99.0]
@@ -217,9 +217,9 @@ def test_valuation_conditions(tmp_path, monkeypatch):
 
 def test_sim_refuses_valuation_backtest(client):
     r = client.get("/sim?ticker=spy&s=p:value&s=p:trend")
-    assert "没法回测" in r.text and "趋势跟随" in r.text
+    assert "can’t be backtested" in r.text and "Trend following" in r.text
     r = client.post("/paper", data={"strategy": "p:value", "ticker": "spy", "capital": "5000"}, follow_redirects=True)
-    assert "没有 DCF 估值" in r.text
+    assert "no DCF valuation" in r.text
 
 
 def test_market_cap_condition():

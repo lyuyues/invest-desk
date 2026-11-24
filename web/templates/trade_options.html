@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_chart.html" import pct, chart_css %}
-{% block title %}期权 · {{ a.name }}{% endblock %}
+{% block title %} Options · {{ a.name }}{% endblock %}
 {% block content %}
 {{ chart_css() }}
 <style>
@@ -29,53 +29,53 @@
   .okmsg { border-left: 3px solid var(--up); padding: 4px 10px; margin-bottom: 12px; }
   .errmsg { border-left: 3px solid var(--down); padding: 4px 10px; margin-bottom: 12px; color: var(--down); }
 </style>
-{% if ok %}<div class="okmsg">{{ ok }} <a href="/trade/{{ a.id }}#opt">看持仓</a></div>{% endif %}
+{% if ok %}<div class="okmsg">{{ ok }} <a href="/trade/{{ a.id }}#opt">View positions</a></div>{% endif %}
 {% if err %}<div class="errmsg">{{ err }}</div>{% endif %}
 {% for e in errs %}<div class="errmsg">{{ e }}</div>{% endfor %}
 
 <section>
-  <h2><a href="/trade/{{ a.id }}">{{ a.name }}</a> · 期权 <span class="chip">{{ '交易中' if open else '休市' }}</span></h2>
+  <h2><a href="/trade/{{ a.id }}">{{ a.name }}</a> · Options <span class="chip">{{ 'Market open' if open else 'Market closed' }}</span></h2>
   <div class="stats">
-    <div>总资产<b>{{ '{:,.0f}'.format(equity) }}</b></div>
-    <div>可用现金<b>{{ '{:,.0f}'.format(free_cash) }}</b></div>
-    {% if spot %}<div>{{ u }} 现价<b>{{ '%.2f' % spot }}</b></div><div>到期还有<b>{{ dte }} 天</b></div>{% endif %}
+    <div>Total equity<b>{{ '{:,.0f}'.format(equity) }}</b></div>
+    <div>Available cash<b>{{ '{:,.0f}'.format(free_cash) }}</b></div>
+    {% if spot %}<div>{{ u }} Price<b>{{ '%.2f' % spot }}</b></div><div>Days to expiry<b>{{ dte }} days</b></div>{% endif %}
   </div>
   <form class="simform" method="get" action="/trade/{{ a.id }}/opt" style="margin-top:10px">
-    <label>正股<input name="u" value="{{ u }}" list="held" required style="text-transform:uppercase;width:7em" autocomplete="off"></label>
+    <label>Underlying<input name="u" value="{{ u }}" list="held" required style="text-transform:uppercase;width:7em" autocomplete="off"></label>
     <datalist id="held">{% for t in held_u %}<option value="{{ t }}">{% endfor %}</datalist>
-    {% if exps %}<label>到期日<select name="e" onchange="this.form.submit()">
-      {% for x, d in exps %}<option value="{{ x }}" {{ 'selected' if x == e }}>{{ x }}（{{ d }} 天）</option>{% endfor %}</select></label>{% endif %}
-    <button>查看期权链</button>
+    {% if exps %}<label>Expiration<select name="e" onchange="this.form.submit()">
+      {% for x, d in exps %}<option value="{{ x }}" {{ 'selected' if x == e }}>{{ x }} ({{ d }} days)</option>{% endfor %}</select></label>{% endif %}
+    <button>View option chain</button>
   </form>
 </section>
 
 {% if sel and a.active %}
 <section id="ticket-sec">
-  <h2>下单：{{ sel.label }}</h2>
+  <h2>Order: {{ sel.label }}</h2>
   <form class="ticket" method="post" action="/trade/{{ a.id }}/opt/order" id="ticket">
     <input type="hidden" name="contract" value="{{ sel.contract }}"><input type="hidden" name="u" value="{{ u }}">
-    <label>方向<div class="sidepick">
-      <label><input type="radio" name="side" value="buy" {{ 'checked' if side != 'sell' }}><span class="b">买入</span></label>
-      <label><input type="radio" name="side" value="sell" {{ 'checked' if side == 'sell' }}><span class="s">卖出</span></label></div></label>
-    <label>类型<select name="kind" id="kind"><option value="limit">限价（推荐）</option><option value="market">市价</option></select></label>
-    <label>张数（1 张 = 100 股）<input name="qty" id="qty" type="number" min="1" max="500" step="1" value="1" required></label>
-    <label id="pxl">限价（每股）<input name="px" id="px" type="number" step="0.01" min="0.01"></label>
-    <label class="wide">为什么做这笔交易？（必填）<textarea name="reason" required placeholder="例：财报前看涨，但只愿意亏掉权利金；如果两周内没涨到 X 就平仓"></textarea></label>
+    <label>Side<div class="sidepick">
+      <label><input type="radio" name="side" value="buy" {{ 'checked' if side != 'sell' }}><span class="b">Buy</span></label>
+      <label><input type="radio" name="side" value="sell" {{ 'checked' if side == 'sell' }}><span class="s">Sell</span></label></div></label>
+    <label>Type<select name="kind" id="kind"><option value="limit">Limit (recommended)</option><option value="market">Market</option></select></label>
+    <label>Contracts (1 contract = 100 shares)<input name="qty" id="qty" type="number" min="1" max="500" step="1" value="1" required></label>
+    <label id="pxl">Limit (per share)<input name="px" id="px" type="number" step="0.01" min="0.01"></label>
+    <label class="wide">Why this trade? (required)<textarea name="reason" required placeholder="e.g. bullish before earnings but only willing to lose the premium; close if it hasn’t reached X within two weeks"></textarea></label>
     <div class="wide" id="info"></div>
-    <div class="wide muted" style="font-size:12px">到期盈亏图（横轴 = 到期时正股价，只算这笔期权、不含手续费）</div>
-    <svg id="payoff" class="wide" viewBox="0 0 560 170" role="img" aria-label="到期盈亏图"></svg>
-    <div class="wide"><button class="btn" id="go">提交订单</button></div>
+    <div class="wide muted" style="font-size:12px">Payoff at expiry (x-axis = underlying price at expiry; this option only, excluding fees)</div>
+    <svg id="payoff" class="wide" viewBox="0 0 560 170" role="img" aria-label="Payoff at expiry"></svg>
+    <div class="wide"><button class="btn" id="go">Submit order</button></div>
   </form>
 </section>
 {% endif %}
 
 {% if rows %}
 <section>
-  <h2>期权链 {{ u }} {{ e }}</h2>
-  <div class="muted" style="margin-bottom:6px">点 <b>卖价 Ask</b> = 买入，点 <b>买价 Bid</b> = 卖出。灰底 = 价内。Delta 约等于到期时价内的概率，也是期权价格随正股变动的比例。</div>
+  <h2>Option chain {{ u }} {{ e }}</h2>
+  <div class="muted" style="margin-bottom:6px">Click <b>Ask</b> = buy; click <b>Bid</b> = sell. Gray background = ITM. Delta roughly equals the probability of finishing ITM at expiry, and is also how much the option price moves relative to the underlying.</div>
   <div class="scroll"><table class="chain">
-    <tr><th colspan="5" style="text-align:center">Call（看涨）</th><th></th><th colspan="5" style="text-align:center">Put（看跌）</th></tr>
-    <tr><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>未平仓</th><th class="k">行权价</th><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>未平仓</th></tr>
+    <tr><th colspan="5" style="text-align:center">Call (bullish)</th><th></th><th colspan="5" style="text-align:center">Put (bearish)</th></tr>
+    <tr><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>Open interest</th><th class="k">Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>Open interest</th></tr>
     {% set ns = namespace(atm=None, best=1e9) %}
     {% for r in rows %}{% if (r.k - spot)|abs < ns.best %}{% set ns.best = (r.k - spot)|abs %}{% set ns.atm = r.k %}{% endif %}{% endfor %}
     {% for r in rows %}
@@ -98,17 +98,17 @@
   </table></div>
 </section>
 {% elif not u %}
-<section class="muted">输入一个正股代码（例如 SPY、AAPL）查看期权链。</section>
+<section class="muted">Enter an underlying ticker (e.g. SPY, AAPL) to view the option chain.</section>
 {% endif %}
 
 <section class="muted" style="font-size:13px;line-height:1.7">
-  <b>入门要点</b><br>
-  ① <b>买 call / put</b>：花权利金买“到期前按行权价买 / 卖 100 股”的权利。最多亏掉权利金，但时间每过一天都在流失价值（theta），方向对了也可能因为涨得不够快、不够多而亏钱。<br>
-  ② <b>卖备兑 call</b>：持有 100 股，再卖一张 call 收权利金。股价涨过行权价时，股票会在到期日按行权价被买走：收益封顶，换来的是一笔确定的收入。<br>
-  ③ <b>卖现金担保 put</b>：冻结“行权价 × 100”的现金，收权利金。到期跌破行权价就按行权价买入 100 股，相当于挂了一个打折买入的单，只是跌得再深也得接。<br>
-  ④ <b>IV（隐含波动率）</b>高 = 期权贵。财报前 IV 往往很高、财报后骤降——买方即使猜对方向也可能亏（IV crush）。<br>
-  ⑤ 买卖价差大的合约（未平仓量少）尽量用<b>限价单</b>，挂在中间价附近；市价单会直接吃掉价差。<br>
-  这里只允许不需要保证金的做法：不能裸卖 call / put。手续费每张 0.65。到期日收盘后自动结算。
+  <b>Basics</b><br>
+  ① <b>Buying calls / puts</b>: pay a premium for the right to “buy / sell 100 shares at the strike before expiry”. The most you can lose is the premium, but time erodes value every day (theta); even if the direction is right, you can lose money if the move is not fast or big enough.<br>
+  ② <b>Sell covered call</b>: hold 100 shares and sell one call to collect premium. If the price rises above the strike, the shares are called away at the strike on expiration: upside is capped in exchange for certain income.<br>
+  ③ <b>Selling cash-secured puts</b>: reserve “Strike × 100” in cash and collect premium. If the price is below the strike at expiry, you buy 100 shares at the strike: like a discounted buy order, except you must take the shares however far it falls.<br>
+  ④ <b>IV (implied volatility)</b>High = options are expensive. IV is often high before earnings and drops sharply afterwards: buyers can lose even when right on direction (IV crush).<br>
+  ⑤ For contracts with wide bid-ask spreads (low open interest), prefer <b>limit orders</b>, placed near the mid price; market orders pay the full spread.<br>
+  Only strategies that need no margin are allowed here: no naked calls / puts. Commission is 0.65 per contract. Settled automatically after the close on expiration.
 </section>
 
 {% if sel and a.active %}
@@ -130,43 +130,43 @@
     $("pxl").style.display = $("kind").value === "market" ? "none" : "";
     const sd = side(), q = Math.max(0, Math.floor(+$("qty").value || 0)), p = price(), n = q * M;
     const closing = (sd === "sell" && S.pos > 0) || (sd === "buy" && S.pos < 0);
-    let h = `Bid ${S.bid.toFixed(2)} / Ask ${S.ask.toFixed(2)}（中间价 ${mid ? mid.toFixed(2) : "—"}）· IV ${(S.iv * 100).toFixed(0)}%`
-          + (S.delta != null ? ` · Delta ${S.delta.toFixed(2)}` : "") + ` · ${DTE} 天后到期`;
+    let h = `Bid ${S.bid.toFixed(2)} / Ask ${S.ask.toFixed(2)} (mid ${mid ? mid.toFixed(2) : "—"}) · IV ${(S.iv * 100).toFixed(0)}%`
+          + (S.delta != null ? ` · Delta ${S.delta.toFixed(2)}` : "") + ` · ${DTE} days to expiry`;
     const spr = S.bid > 0 && S.ask > 0 ? (S.ask - S.bid) / mid : null;
-    if (spr != null && spr > 0.1) h += `<br><span class="down">买卖价差 ${(spr * 100).toFixed(0)}%，很宽——用限价单，别用市价单</span>`;
+    if (spr != null && spr > 0.1) h += `<br><span class="down">Bid-ask spread ${(spr * 100).toFixed(0)}%, very wide: use a limit order, not a market order</span>`;
     if (!q || !p) { info.innerHTML = h; svg.innerHTML = ""; return; }
     const prem = p * n, fee = FEE * q;
     if (closing) {
       const held = Math.abs(S.pos), pnl = (S.pos > 0 ? p - S.avg : S.avg - p) * Math.min(q, held) * M - fee;
-      h += `<br>平仓：你现在${S.pos > 0 ? "持有" : "卖出了"} ${held} 张，成本 ${S.avg.toFixed(2)}；按 ${p.toFixed(2)} 平掉 ${Math.min(q, held)} 张，`
-         + `盈亏约 <b class="${pnl >= 0 ? "up" : "down"}">${pnl >= 0 ? "+" : ""}${fmt(pnl)}</b>`;
-      if (q > held) h += `<br><span class="down">最多只能平 ${held} 张</span>`;
+      h += `<br>Closing: you currently ${S.pos > 0 ? "hold" : "are short"} ${held} contracts, avg cost ${S.avg.toFixed(2)}; at ${p.toFixed(2)} closing ${Math.min(q, held)} contracts, `
+         + `P&L approx. <b class="${pnl >= 0 ? "up" : "down"}">${pnl >= 0 ? "+" : ""}${fmt(pnl)}</b>`;
+      if (q > held) h += `<br><span class="down">You can close at most ${held} contracts</span>`;
       info.innerHTML = h; svg.innerHTML = ""; return;
     }
     let be, maxLoss, maxGain;
     if (sd === "buy") {
       be = call ? K + p : K - p; maxLoss = prem + fee; maxGain = call ? Infinity : (K - p) * n;
-      h += `<br>付出权利金 <b>${fmt(prem + fee)}</b>（总资产的 ${((prem + fee) / EQ * 100).toFixed(1)}%）——这就是最大亏损`;
-      if (prem + fee > FREE) h += ` <b class="down">现金不够（可用 ${fmt(FREE)}）</b>`;
-      h += `<br>到期盈亏平衡：${S.underlying || ""} ${call ? "高于" : "低于"} <b>${be.toFixed(2)}</b>（离现价 ${((be / SPOT - 1) * 100).toFixed(1)}%）`;
-      h += `<br>最大收益：${call ? "理论上无上限" : fmt(maxGain) + "（正股跌到 0）"}`;
-      if ((prem + fee) / EQ > 0.05) h += `<br><span class="down">一笔期权占总资产超过 5%——期权很容易整笔归零，新手建议单笔 1–2% 以内</span>`;
+      h += `<br>Premium paid <b>${fmt(prem + fee)}</b> (share of total equity: ${((prem + fee) / EQ * 100).toFixed(1)}%) - this is the max loss`;
+      if (prem + fee > FREE) h += ` <b class="down">Not enough cash (available ${fmt(FREE)})</b>`;
+      h += `<br>Breakeven at expiry: ${S.underlying || ""} ${call ? "above" : "below"} <b>${be.toFixed(2)}</b> (from current price ${((be / SPOT - 1) * 100).toFixed(1)}%)`;
+      h += `<br>Max gain: ${call ? "theoretically unlimited" : fmt(maxGain) + " (underlying falls to 0)"}`;
+      if ((prem + fee) / EQ > 0.05) h += `<br><span class="down">A single option is over 5% of total equity - options can easily go to zero; beginners should keep each trade within 1-2%</span>`;
     } else if (call) {
       const free = S.shares - S.locked;
       be = null; maxGain = prem - fee;
-      h += `<br>收入权利金 <b>${fmt(prem - fee)}</b>，需要 ${n} 股作为备兑：你有 ${fmt(S.shares)} 股，其中 ${fmt(S.locked)} 股已被锁定`;
-      if (free < n) h += ` <b class="down">不够，不能裸卖 call</b>`;
-      h += `<br>到期时股价高于 <b>${K}</b>：你的 ${n} 股按 ${K} 被买走，放弃 ${K} 以上的涨幅`;
-      h += `<br>到期时低于 ${K}：期权作废，权利金全拿，股票还在你手里（股票本身的涨跌照常）`;
-      if (S.delta != null) h += `<br>被买走的概率大约 ${(S.delta * 100).toFixed(0)}%`;
+      h += `<br>Premium received <b>${fmt(prem - fee)}</b>, needs ${n} shares as cover: you have ${fmt(S.shares)} shares, of which ${fmt(S.locked)} shares are already locked`;
+      if (free < n) h += ` <b class="down">not enough; naked calls are not allowed</b>`;
+      h += `<br>If the price at expiry is above <b>${K}</b>: your ${n} shares are called away at ${K}, giving up gains above ${K}`;
+      h += `<br>Below ${K} at expiry: the option expires worthless, you keep the full premium, and the shares stay with you (still subject to their own price moves)`;
+      if (S.delta != null) h += `<br>Probability of being called away approx. ${(S.delta * 100).toFixed(0)}%`;
     } else {
       const need = K * n;
       be = K - p; maxLoss = (K - p) * n + fee; maxGain = prem - fee;
-      h += `<br>收入权利金 <b>${fmt(prem - fee)}</b>，冻结现金 <b>${fmt(need)}</b>（行权价 × ${n}）`;
-      if (need > FREE + prem - fee) h += ` <b class="down">可用现金只有 ${fmt(FREE)}，不够</b>`;
-      h += `<br>到期时股价低于 ${K}：按 ${K} 买入 ${n} 股，实际成本 ${be.toFixed(2)}（扣掉权利金）`;
-      h += `<br>最大亏损约 ${fmt(maxLoss)}（正股跌到 0），盈亏平衡 <b>${be.toFixed(2)}</b>（离现价 ${((be / SPOT - 1) * 100).toFixed(1)}%）`;
-      if (S.delta != null) h += `<br>被指派（接股）的概率大约 ${(-S.delta * 100).toFixed(0)}%`;
+      h += `<br>Premium received <b>${fmt(prem - fee)}</b>, cash reserved <b>${fmt(need)}</b> (strike × ${n})`;
+      if (need > FREE + prem - fee) h += ` <b class="down">Available cash is only ${fmt(FREE)}, not enough</b>`;
+      h += `<br>If the price at expiry is below ${K}: buy ${n} shares at ${K}, effective cost ${be.toFixed(2)} (net of premium)`;
+      h += `<br>Max loss approx. ${fmt(maxLoss)} (underlying falls to 0), breakeven <b>${be.toFixed(2)}</b> (from current price ${((be / SPOT - 1) * 100).toFixed(1)}%)`;
+      if (S.delta != null) h += `<br>Probability of assignment (taking the shares) approx. ${(-S.delta * 100).toFixed(0)}%`;
     }
     info.innerHTML = h;
     draw(sd, p, q);
@@ -185,13 +185,13 @@
       `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)"/>` +
       `<line x1="${X(SPOT)}" x2="${X(SPOT)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3"/>` +
       `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>` +
-      t(X(SPOT), H - 8, `现价 ${SPOT.toFixed(2)}`) + t(X(lo) + 2, H - 8, lo.toFixed(0), "start") + t(X(hi) - 2, H - 8, hi.toFixed(0), "end") +
+      t(X(SPOT), H - 8, `Price ${SPOT.toFixed(2)}`) + t(X(lo) + 2, H - 8, lo.toFixed(0), "start") + t(X(hi) - 2, H - 8, hi.toFixed(0), "end") +
       t(L - 4, Y(y1 - pad) + 4, (y1 - pad >= 0 ? "+" : "") + fmt(y1 - pad), "end") +
       (Math.min(Math.abs(Y(0) - Y(y1 - pad)), Math.abs(Y(0) - Y(y0 + pad))) > 12 ? t(L - 4, Y(0) + 4, "0", "end") : "") +
       t(L - 4, Y(y0 + pad) + 4, fmt(y0 + pad), "end");
   }
   f.addEventListener("input", paint); f.addEventListener("change", paint);
-  f.addEventListener("submit", () => { $("go").disabled = true; $("go").textContent = "提交中…"; });
+  f.addEventListener("submit", () => { $("go").disabled = true; $("go").textContent = "Submitting…"; });
   paint();
 })();
 </script>

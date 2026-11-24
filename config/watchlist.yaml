@@ -1,14 +1,14 @@
-# 持仓：阈值最紧（单日 ±5% 🟡 / ±8% 🔴）。也可以在网页「总览」或「财报」页直接添加/删除。
+# Holdings: tightest thresholds (one-day ±5% 🟡 / ±8% 🔴). You can also add/remove them directly on the “Overview” or “Earnings” page.
 holdings:
   - MSFT
   - AAPL
 
-# 关注：单日 ±8% 🟡
+# Watchlist: one-day ±8% 🟡
 watchlist:
   - NVDA
   - GOOGL
   - TSM
 
-# 可选价位线：穿越时推 🟡（只在穿越那一刻推一次）
-# 例：NVDA: {below: 150, above: 220}
+# Optional price levels: push 🟡 when crossed (only once, at the moment of crossing)
+# Example: NVDA: {below: 150, above: 220}
 levels: {}

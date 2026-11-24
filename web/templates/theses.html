@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}投资逻辑 · Invest Radar{% endblock %}
+{% block title %} Theses · Invest Radar {% endblock %}
 {% block content %}
 <section>
-  <h2>投资逻辑</h2>
-  <div class="muted">每个标的为什么持有 / 关注、看什么指标、什么情况下逻辑不成立。日报、周报和右侧助手都会对照这里判断"逻辑是否变化"。
-    标着「默认」的是预填的起点，改过保存后就变成你自己的。</div>
+  <h2>Investment thesis</h2>
+  <div class="muted">Why each ticker is held / watched, which metrics to track, and what would break the thesis. The daily brief, weekly report and the assistant on the right all check against this to judge whether "the thesis has changed".
+    Entries marked “Default” are pre-filled starting points; once you edit and save, they become your own.</div>
 </section>
 {% for it in items %}
 <section class="th" id="th-{{ it.ticker }}">
@@ -12,15 +12,15 @@
     <div class="row">
       {% if it.ticker == '_GENERAL' %}<b>{{ it.name }}</b>{% else %}<b><a href="/t/{{ it.ticker }}" style="color:var(--accent);text-decoration:none">{{ it.name }}</a></b>{% endif %}
       {% if it.tier %}<span class="chip">{{ it.tier }}</span>{% endif %}
-      {% if it.is_default %}<span class="chip def">默认</span>{% else %}<span class="muted">更新于 {{ it.updated }}</span>{% endif %}
+      {% if it.is_default %}<span class="chip def">Default</span>{% else %}<span class="muted">Updated {{ it.updated }}</span>{% endif %}
       <span class="sp"></span>
-      <button disabled>保存</button>
+      <button disabled>Save</button>
     </div>
     <textarea name="body" rows="4">{{ it.body }}</textarea>
   </form>
   {% if it.ticker != '_GENERAL' %}<div class="nmini">
     {% for n in it.notes %}<div><span class="muted">{{ n.when }} · {{ n.kind }}</span> <a href="/notes?ticker={{ it.ticker|urlencode }}#n-{{ n.id }}">{{ n.title or n.snippet }}</a></div>{% endfor %}
-    {% if it.ncount %}<a href="/notes?ticker={{ it.ticker|urlencode }}">全部笔记（{{ it.ncount }}）</a><span class="muted"> · </span>{% endif %}<a href="/notes?new=1&ticker={{ it.ticker|urlencode }}&back={{ ('/theses#th-' ~ it.ticker)|urlencode }}">记一条</a>
+    {% if it.ncount %}<a href="/notes?ticker={{ it.ticker|urlencode }}">All notes ({{ it.ncount }})</a><span class="muted"> · </span>{% endif %}<a href="/notes?new=1&ticker={{ it.ticker|urlencode }}&back={{ ('/theses#th-' ~ it.ticker)|urlencode }}">Add note</a>
   </div>{% endif %}
 </section>
 {% endfor %}

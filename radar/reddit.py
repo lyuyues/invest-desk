@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from radar.db import _ts
 
-LABEL = "Reddit 散户讨论（群体情绪，噪音大，不是事实来源；只看热度和情绪方向）"
+LABEL = "Reddit retail discussion (crowd sentiment, very noisy, not a source of facts; look only at buzz and sentiment direction)"
 
 
 def top_posts(conn: sqlite3.Connection, now: datetime, limit: int = 15, hours: float = 30) -> list[sqlite3.Row]:
@@ -57,14 +57,14 @@ def for_prompt(conn: sqlite3.Connection, tickers: list[str], now: datetime, top:
     posts = top_posts(conn, now, top)
     counts = mention_counts(conn, tickers, now)[:per]
     if not posts and not counts:
-        return ["- 暂无数据"]
-    L = ["今日热帖（r/economics、investing、stocks、StockMarket、wallstreetbets 当日 top）："]
-    L += [f"- r/{p['subreddit']}：{p['title'][:140]}（{p['published'][:16]} UTC）{p['link']}" for p in posts] or ["- 无"]
-    L.append("跟踪标的 24 小时提及帖数（括号内为之前日均；只统计抓到的 listing，绝对数小，看相对变化）：")
+        return ["- No data yet"]
+    L = ["Today’s hot posts (r/economics, investing, stocks, StockMarket, wallstreetbets daily top):"]
+    L += [f"- r/{p['subreddit']}: {p['title'][:140]} ({p['published'][:16]} UTC) {p['link']}" for p in posts] or ["- None"]
+    L.append("Posts mentioning tracked tickers in the last 24h (in parentheses: prior daily average; only counts fetched listings, absolute numbers are small, look at relative change):")
     for c in counts:
-        base = f"前 {c['days']} 天日均 {c['base']:.1f}" + (f"，×{c['ratio']:.1f}" if c["ratio"] else "") if c["base"] is not None \
-            else "历史不足"
-        L.append(f"- {c['ticker']}：{c['n24']} 帖（{base}）")
+        base = f"prior {c['days']}-day avg {c['base']:.1f}" + (f", ×{c['ratio']:.1f}" if c["ratio"] else "") if c["base"] is not None \
+            else "Not enough history"
+        L.append(f"- {c['ticker']}: {c['n24']} posts ({base})")
     if not counts:
-        L.append("- 无")
+        L.append("- None")
     return L

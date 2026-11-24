@@ -49,7 +49,7 @@ def test_pusher_payload():
 
     push = make_pusher("https://ntfy.sh", "topic-x", "https://invest.example", post=post)
     push(Fire("hu", "MSFT", "urgent", "MSFT ▼9%", "body"))
-    push(Fire("digest", "*", "notice", "另有 2 条", "b"))
+    push(Fire("digest", "*", "notice", "2 more", "b"))
     (url, p1), (_, p2) = calls
     assert url == "https://ntfy.sh"
     assert p1["topic"] == "topic-x" and p1["title"] == "MSFT ▼9%" and p1["priority"] == 4

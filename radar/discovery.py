@@ -64,7 +64,7 @@ def theme_hits(themes: dict, quotes_by_ticker: dict, default_max_from_high: floa
                 continue
             fh = (q.price / q.high52 - 1) * 100
             if fh <= limit:
-                out.append((t, name, f"{name}：距52周高 {fh:.0f}%"))
+                out.append((t, name, f"{name}: from 52w high {fh:.0f}%"))
     return out
 
 
@@ -130,9 +130,9 @@ def diff_13f(prev: dict[str, dict], cur: dict[str, dict], min_increase: float = 
     for cusip, rec in cur.items():
         before = prev.get(cusip)
         if before is None or before["shares"] == 0:
-            out.append((rec["name"], "新建仓"))
+            out.append((rec["name"], "New position"))
         elif rec["shares"] / before["shares"] - 1 >= min_increase:
-            out.append((rec["name"], f"加仓 {rec['shares'] / before['shares'] - 1:+.0%}"))
+            out.append((rec["name"], f"Added {rec['shares'] / before['shares'] - 1:+.0%}"))
     return out
 
 
@@ -169,10 +169,10 @@ def _13f_stamp(report_date: str | None, filing_date: str | None) -> str:
         y, m = int(report_date[:4]), int(report_date[5:7])
         q = (m - 1) // 3 + 1
         start = f"{y}-{3 * q - 2:02d}-01"
-        parts.append(f"操作于 {y}Q{q}（{start[5:]}~{report_date[5:]} 之间，具体日期不公开）")
+        parts.append(f"traded in {y}Q{q} ({start[5:]}~{report_date[5:]}, exact date not disclosed)")
     if filing_date:
-        parts.append(f"{filing_date} 披露")
-    return f"（{'，'.join(parts)}）" if parts else ""
+        parts.append(f"{filing_date} disclosed")
+    return f"({', '.join(parts)})" if parts else ""
 
 
 # ---- combine ----
@@ -227,7 +227,7 @@ def discover(conn: sqlite3.Connection, dcfg: dict, now: datetime, get: Getter,
         try:
             for r in parse_openinsider(get(OPENINSIDER_CLUSTER).text):
                 if r["value"] >= dcfg.get("insider_min_value", 500_000):
-                    hits[r["ticker"]].add("smart_money", f"{r['insiders']} 名内部人买入 ${r['value'] / 1e6:.1f}M（交易于 {r['trade_date']}，{r['filing_date']} 披露）")
+                    hits[r["ticker"]].add("smart_money", f"{r['insiders']} insiders bought ${r['value'] / 1e6:.1f} M (traded on {r['trade_date']}, {r['filing_date']} disclosed)")
         except Exception as e:
             errors.append(f"openinsider: {e}")
 

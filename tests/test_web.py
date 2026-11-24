@@ -32,7 +32,7 @@ def test_home(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "MSFT" in r.text and "NVDA" in r.text
-    assert "暂无数据" in r.text  # GOOGL has no quotes
+    assert "No data yet" in r.text  # GOOGL has no quotes
     assert "MSFT ▼5.0%" in r.text
     assert "-5.0%" in r.text
 
@@ -46,7 +46,7 @@ def test_ticker_page(client):
 
 def test_unknown_ticker(client):
     r = client.get("/t/ZZZZ")
-    assert r.status_code == 200 and "还没有" in r.text
+    assert r.status_code == 200 and "None yet" in r.text
 
 
 def test_healthz(client):
@@ -66,7 +66,7 @@ def rich_client(tmp_path, monkeypatch):
 
     (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: []\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
-    (tmp_path / "macro.yaml").write_text("fred: {DGS10: 10年期美债, UNRATE: 失业率}\n")
+    (tmp_path / "macro.yaml").write_text("fred: {DGS10: 10Y Treasury, UNRATE: Unemployment rate}\n")
     monkeypatch.setenv("RADAR_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "r.db"))
     conn = db.connect(tmp_path / "r.db")
@@ -80,9 +80,9 @@ def rich_client(tmp_path, monkeypatch):
     conn.execute("INSERT INTO insider_tx VALUES ('a2',0,'MSFT','Doe Jane','CFO','2026-11-04','P',5000,250,1250000)")
     conn.execute("INSERT INTO earnings VALUES ('MSFT','2026-10-28',4.72,4.89,3.59)")
     store_candidates(conn, "2026-11-08", [{"ticker": "TRNS", "score": 2.2, "channels": ["screen", "smart_money"],
-                                           "detail": {"screen": ["Transcat P/E 20"], "smart_money": ["2 名内部人买入"]}}])
+                                           "detail": {"screen": ["Transcat P/E 20"], "smart_money": ["2 insiders bought"]}}])
     conn.execute("INSERT INTO reports (created, title, markdown, ok) VALUES (?,?,?,1)",
-                 ("2026-11-08T03:00:00+00:00", "周报 2026-11-07", "# 一句话\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>alert(1)</script>"))
+                 ("2026-11-08T03:00:00+00:00", "Weekly report 2026-11-07", "# One-liner\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>alert(1)</script>"))
     conn.commit()
     conn.close()
     from web.app import app
@@ -93,18 +93,18 @@ def rich_client(tmp_path, monkeypatch):
 def test_macro_page(rich_client):
     r = rich_client.get("/macro")
     assert r.status_code == 200
-    assert "10年期美债" in r.text and "4.84" in r.text
+    assert "10Y Treasury" in r.text and "4.84" in r.text
     assert "3.80%" in r.text  # 3.50 + (1.0 + 0.2) * 0.25
     assert "25 bps decrease" in r.text and "82%" in r.text
 
 
 def test_discover_page(rich_client):
     r = rich_client.get("/discover")
-    assert r.status_code == 200 and "TRNS" in r.text and "聪明钱" in r.text and "2026-11-08" in r.text
+    assert r.status_code == 200 and "TRNS" in r.text and "Smart money" in r.text and "2026-11-08" in r.text
 
 
 def test_reports_pages_escape_html(rich_client):
-    assert "周报 2026-11-07" in rich_client.get("/reports").text
+    assert "Weekly report 2026-11-07" in rich_client.get("/reports").text
     r = rich_client.get("/reports/1")
     assert r.status_code == 200 and "<table>" in r.text and "<script>alert" not in r.text
     assert rich_client.get("/reports/999").status_code == 404
@@ -112,12 +112,12 @@ def test_reports_pages_escape_html(rich_client):
 
 def test_ticker_events(rich_client):
     r = rich_client.get("/t/MSFT")
-    assert "Doe Jane" in r.text and "$1.25M" in r.text and "高管/董事变动" in r.text and "+3.6%" in r.text
+    assert "Doe Jane" in r.text and "$1.25M" in r.text and "Officer/director change" in r.text and "+3.6%" in r.text
 
 
 def test_home_shows_fed(rich_client):
     r = rich_client.get("/")
-    assert "Fed 预期" in r.text and "3.80%" in r.text
+    assert "Fed expectations" in r.text and "3.80%" in r.text
 
 
 def test_tracked_seed_add_move_delete(client, tmp_path, monkeypatch):
@@ -181,38 +181,38 @@ def test_earnings_board_reaction(tmp_path):
 
 def test_theses_seed_edit(rich_client, tmp_path):
     r = rich_client.get("/theses")
-    assert r.status_code == 200 and "总体原则" in r.text and "默认" in r.text
-    r = rich_client.post("/theses/MSFT", data={"body": "我的 MSFT 逻辑"}, follow_redirects=False)
+    assert r.status_code == 200 and "General principles" in r.text and "Default" in r.text
+    r = rich_client.post("/theses/MSFT", data={"body": "My MSFT thesis"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/theses#th-MSFT"
     rich_client.get("/theses")  # re-seed must not overwrite
-    assert "我的 MSFT 逻辑" in rich_client.get("/t/MSFT").text
+    assert "My MSFT thesis" in rich_client.get("/t/MSFT").text
     r = rich_client.post("/theses/MSFT", data={"body": "v2", "back": "/t/MSFT"}, follow_redirects=False)
     assert r.headers["location"] == "/t/MSFT"
     assert rich_client.post("/theses/bad%20t", data={"body": "x"}).status_code == 400
     from radar import theses
     conn = db.connect(tmp_path / "r.db")
     p = "\n".join(theses.for_prompt(conn, ["MSFT"]))
-    assert "v2" in p and "总体原则（默认值" in p
+    assert "v2" in p and "General principles (default" in p
 
 
 def test_earnings_notes_flow(rich_client, tmp_path):
     from radar import earnings_notes as en
     from radar.config import load_config
-    out = "## 一句话\nAzure 加速\n\n## 来源\nx\n\nTAGS: 超预期, 指引上调 | 重要度: 高"
+    out = "## One-liner\nAzure accelerating\n\n## Source\nx\n\nTAGS: Beat, Guidance raised | Importance: High"
     body, tags, lvl = en.parse(out)
-    assert tags == ["超预期", "指引上调"] and lvl == "高" and "TAGS" not in body and "Azure" in body
+    assert tags == ["Beat", "Guidance raised"] and lvl == "High" and "TAGS" not in body and "Azure" in body
     assert en.parse("no tags")[1:] == ([], None)
     conn = db.connect(tmp_path / "r.db")
     cfg = load_config()
     prompts = []
     done = en.run(conn, cfg, NOW, lambda p: prompts.append(p) or out)
-    assert [(d["ticker"], d["date"], d["level"]) for d in done] == [("MSFT", "2026-10-28", "高")]
-    assert "EPS：实际 4.89 vs 预期 4.72" in prompts[0] and "## 投资逻辑" in prompts[0]
+    assert [(d["ticker"], d["date"], d["level"]) for d in done] == [("MSFT", "2026-10-28", "High")]
+    assert "EPS: actual 4.89 vs est. 4.72" in prompts[0] and "## Investment thesis" in prompts[0]
     assert en.run(conn, cfg, NOW, lambda p: out) == []  # already done
     conn.close()
     r = rich_client.get("/earnings")
-    assert "重要度 高" in r.text and "指引上调" in r.text and "Azure 加速" in r.text
-    assert "指引上调" in rich_client.get("/t/MSFT").text
+    assert "Importance High" in r.text and "Guidance raised" in r.text and "Azure accelerating" in r.text
+    assert "Guidance raised" in rich_client.get("/t/MSFT").text
 
 
 def _fake_builder():
@@ -259,7 +259,7 @@ def test_valuation_flow(rich_client, tmp_path):
     r = rich_client.get("/valuation")
     assert r.status_code == 200 and "MSFT" in r.text
     page = rich_client.get("/v/MSFT")
-    assert page.status_code == 200 and "隐含退出倍数" in page.text and 'id="exit-ebitda"' in page.text
+    assert page.status_code == 200 and "Implied exit multiple" in page.text and 'id="exit-ebitda"' in page.text
     mine = {"rr": 0.08, "terminal": 0.02, "fcf_margin": 0.25, "shares": 10, "g_start": 0.05, "analyst": [120, 130]}
     assert rich_client.post("/v/MSFT/inputs", json={"inputs": mine}).status_code == 200
     assert rich_client.post("/v/MSFT/inputs", json={"inputs": {**mine, "rr": 0.01}}).status_code == 400
@@ -283,7 +283,7 @@ def test_valuation_schedule():
 def test_fix_share_units():
     from radar import valuation
     a = {"shares": 1.44}  # BRK class-A equivalents (M)
-    assert "市值" in valuation.fix_share_units(a, 2156.0) and a["shares"] == 2156.0
+    assert "market cap" in valuation.fix_share_units(a, 2156.0) and a["shares"] == 2156.0
     b = {"shares": 5186.0}
     assert valuation.fix_share_units(b, 5190.0) is None and b["shares"] == 5186.0
     assert valuation.fix_share_units({"shares": 10.0}, None) is None
@@ -309,6 +309,6 @@ def test_earnings_add_remove(client, monkeypatch):
     r = client.post("/tracked", data={"ticker": "amd", "tier": "watch", "back": "/earnings"}, follow_redirects=False)
     assert r.headers["location"] == "/earnings"
     page = client.get("/earnings").text
-    assert "添加标的" in page and "AMD" in page  # listed under 暂无财报日期
+    assert "Add ticker" in page and "AMD" in page  # listed under “No earnings date yet”
     r = client.post("/tracked/AMD/delete", data={"back": "/earnings"}, follow_redirects=False)
     assert r.headers["location"] == "/earnings" and ">AMD<" not in client.get("/earnings").text

@@ -1,61 +1,61 @@
 {% extends "base.html" %}
 {% from "_chart.html" import pct, chart_css %}
-{% block title %}模拟盘 · Invest Radar{% endblock %}
+{% block title %} Paper trading · Invest Radar {% endblock %}
 {% block content %}
 {{ chart_css() }}
 {% if err %}<section><div class="nerr">{{ err }}</div></section>{% endif %}
 <section>
-  <h2>开一个模拟盘</h2>
+  <h2>Open a paper account</h2>
   <form class="simform" method="post" action="/paper">
-    <label>策略<select name="strategy" style="width:auto; max-width:16em">
+    <label>Strategy<select name="strategy" style="width:auto; max-width:16em">
       {% for s in strategies %}<option value="{{ s.id }}" {{ 'selected' if s.id == pick }}>{{ s.spec.name }}</option>{% endfor %}
     </select></label>
-    <label>股票 / ETF<input class="tk" name="ticker" value="{{ ticker }}" maxlength="12" required></label>
-    <label>虚拟本金<input name="capital" type="number" min="100" step="100" value="10000"></label>
-    <label>单边成本 (bp)<input name="cost" type="number" min="0" max="200" value="10"></label>
-    <button>开始</button>
+    <label>Stock / ETF<input class="tk" name="ticker" value="{{ ticker }}" maxlength="12" required></label>
+    <label>Virtual capital<input name="capital" type="number" min="100" step="100" value="10000"></label>
+    <label>Cost per side (bp)<input name="cost" type="number" min="0" max="200" value="10"></label>
+    <button>Start</button>
   </form>
-  <div class="muted" style="margin-top:8px">从下一根还没收盘的日线开始，按开户这一刻的策略规则运行（之后再改策略不会影响这个账户）。每天美东 16:45 后自动结算：收盘判断信号，下一交易日收盘成交；触发信号时推送到手机。只是纸面交易，不会真的下单。</div>
+  <div class="muted" style="margin-top:8px">Starts from the next daily bar that hasn’t closed yet and runs on the strategy rules as of opening (later strategy edits don’t affect this account). Settles automatically after 16:45 ET each day: signals are checked at the close and filled at the next trading day’s close; signals are pushed to your phone. Paper trading only, no real orders.</div>
 </section>
 
 <section id="scan">
-  <h2>全市场组合（扫描所有美股）</h2>
+  <h2>Market-wide portfolio (scans all US stocks)</h2>
   <form class="simform" method="post" action="/scan">
-    <label>策略<select name="strategy" style="width:auto; max-width:18em">
+    <label>Strategy<select name="strategy" style="width:auto; max-width:18em">
       {% for s in port_strats %}<option value="{{ s.id }}">{{ s.spec.name }}</option>{% endfor %}
     </select></label>
-    <label>虚拟本金<input name="capital" type="number" min="1000" step="1000" value="100000"></label>
-    <label>最多持有几只<input name="max_pos" type="number" min="1" max="50" value="10"></label>
-    <label>单边成本 (bp)<input name="cost" type="number" min="0" max="200" value="10"></label>
-    <button>开始</button>
+    <label>Virtual capital<input name="capital" type="number" min="1000" step="1000" value="100000"></label>
+    <label>Max positions<input name="max_pos" type="number" min="1" max="50" value="10"></label>
+    <label>Cost per side (bp)<input name="cost" type="number" min="0" max="200" value="10"></label>
+    <button>Start</button>
   </form>
-  <div class="muted" style="margin-top:8px">每天收盘后扫描所有在美国交易所上市、市值 ≥ 10 亿美元的股票（不含 OTC），用 DCF 合理价判断。
-    金融、房地产、公用事业三个行业和财报不是美元的外国公司不在股票池里——它们不适合用自由现金流做 DCF，算出来的合理价会离谱。
-    满足买入条件的按上涨空间从高到低填进空位，每只用 1/N 的资金；持仓满足卖出条件就卖。信号在收盘时产生，下一交易日收盘成交。
-    只能用估值 / 市值条件和止损止盈类条件（{{ port_strats|length }} 个策略可选；在回测页“复制修改”可以做新的）。</div>
-  <div class="muted" style="margin-top:6px">股票池：{{ cov.universe }} 只{% if cov.quote_date %}（价格 {{ cov.quote_date }}）{% endif %}；
-    已算 DCF {{ cov.valued }} 只，其中 {{ cov.with_fair }} 只有正的合理价{% if cov.last_fair %}，最近 {{ cov.last_fair[:16]|replace('T', ' ') }}{% endif %}。
-    {% if cov.universe and cov.valued < cov.universe %}第一次要算完全部大约需要几个小时，期间账户会先用已算好的那部分。{% endif %}
-    <form method="post" action="/scan/run" style="display:inline"><button class="chipbtn">立即扫描</button></form></div>
+  <div class="muted" style="margin-top:8px">After each close, scans all US-listed stocks with market cap  ≥ $1B (excluding OTC), using the DCF fair value.
+    Financials, real estate and utilities, plus foreign companies that don’t report in USD, are excluded from the universe: free-cash-flow DCF doesn’t suit them and the fair values come out absurd.
+    Stocks meeting the entry conditions fill open slots from highest to lowest upside, each with 1/N of the capital; holdings that meet the exit conditions are sold. Signals are generated at the close and filled at the next trading day’s close.
+    Only valuation / market-cap conditions and stop-loss / take-profit conditions can be used ({{ port_strats|length }} strategies available; on the backtest page, “Copy & edit” makes new ones).</div>
+  <div class="muted" style="margin-top:6px">Universe: {{ cov.universe }} stocks{% if cov.quote_date %} (prices as of {{ cov.quote_date }}){% endif %}; 
+    DCF computed for {{ cov.valued }} stocks, of which {{ cov.with_fair }} have a positive fair value{% if cov.last_fair %}, latest {{ cov.last_fair[:16]|replace('T', ' ') }}{% endif %}.
+    {% if cov.universe and cov.valued < cov.universe %} The first full run takes a few hours; meanwhile the account uses the part already computed. {% endif %}
+    <form method="post" action="/scan/run" style="display:inline"><button class="chipbtn">Scan now</button></form></div>
   {% if ports %}
   <div class="scroll" style="margin-top:10px"><table>
-    <tr><th>#</th><th>策略</th><th>开始</th><th>权益</th><th>收益</th><th>同期 SPY</th><th>持仓</th><th>状态</th></tr>
+    <tr><th>#</th><th>Strategy</th><th>Start</th><th>Equity</th><th>Return</th><th>SPY (same period)</th><th>Holdings</th><th>Status</th></tr>
     {% for x in ports %}{% set a = x.a %}
     <tr style="{{ '' if a.active else 'opacity:.55' }}"><td><a href="/scan/{{ a.id }}">{{ a.id }}</a></td>
       <td class="l"><a href="/scan/{{ a.id }}">{{ a.name }}</a></td><td>{{ a.created[:10] }}</td>
       <td>{{ '{:,.0f}'.format(x.equity) }}</td><td>{{ pct(x.equity / a.capital - 1, true) }}</td>
       <td>{{ pct(x.bench / a.capital - 1, true) if x.bench else '—' }}</td><td>{{ x.n_pos }} / {{ a.max_pos }}</td>
-      <td>{{ '运行中' if a.active else '已停止' }}</td></tr>
+      <td>{{ 'Running' if a.active else 'Stopped' }}</td></tr>
     {% endfor %}
   </table></div>
   {% endif %}
 </section>
 
 <section>
-  <h2>我的模拟盘</h2>
+  <h2>My paper accounts</h2>
   {% if accts %}
   <div class="scroll"><table class="sortable">
-    <tr><th>#</th><th>策略</th><th>股票</th><th>开始</th><th>权益</th><th>收益</th><th>买入持有</th><th>差额</th><th>状态</th></tr>
+    <tr><th>#</th><th>Strategy</th><th>Stock</th><th>Start</th><th>Equity</th><th>Return</th><th>Buy & hold</th><th>Difference</th><th>Status</th></tr>
     {% for x in accts %}{% set a = x.a %}
     <tr style="{{ '' if a.active else 'opacity:.55' }}">
       <td><a href="/paper/{{ a.id }}">{{ a.id }}</a></td>
@@ -66,10 +66,10 @@
       <td>{{ pct(x.equity / a.capital - 1, true) }}</td>
       <td>{{ pct(x.hold / a.capital - 1, true) }}</td>
       <td>{{ pct((x.equity - x.hold) / a.capital, true) }}</td>
-      <td>{% if not a.active %}已停止{% elif not a.last_date %}等待首个收盘{% elif a.pending %}<b>待{{ '买入' if a.pending == 'buy' else '卖出' }}</b>{% elif a.shares > 0 %}持仓{% else %}空仓{% endif %}</td>
+      <td>{% if not a.active %} Stopped{% elif not a.last_date %}Waiting for first close {% elif a.pending %}<b>Pending {{ 'Buy' if a.pending == 'buy' else 'Sell' }}</b>{% elif a.shares > 0 %} Holding{% else %}No position {% endif %}</td>
     </tr>
     {% endfor %}
   </table></div>
-  {% else %}<div class="muted">还没有模拟盘。先去 <a href="/sim">回测</a> 找一个看起来靠谱的策略。</div>{% endif %}
+  {% else %}<div class="muted">No paper accounts yet. First go to <a href="/sim">Backtest</a>  and find a strategy that looks solid.</div>{% endif %}
 </section>
 {% endblock %}

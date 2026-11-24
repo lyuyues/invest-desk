@@ -47,9 +47,9 @@ def conn(tmp_path):
 
 def test_check_spec():
     scan.check_spec(SPEC)
-    with pytest.raises(ValueError, match="上涨空间"):
+    with pytest.raises(ValueError, match="upside"):
         scan.check_spec(backtest.PRESETS["p:trend"])        # momentum alone isn't enough: needs a valuation entry
-    with pytest.raises(ValueError, match="上涨空间"):
+    with pytest.raises(ValueError, match="upside"):
         scan.check_spec(backtest.validate({"entry": {"conds": [{"type": "mcap_ge", "b": 10}]}}))
 
 
@@ -129,25 +129,25 @@ def test_scan_pages(tmp_path, monkeypatch):
     from web.app import app
     client = TestClient(app)
     r = client.get("/paper")
-    assert "全市场组合" in r.text and "估值低买高卖（DCF）" in r.text
+    assert "Market-wide portfolio" in r.text and "Valuation buy-low/sell-high (DCF)" in r.text
     r = client.post("/scan", data={"strategy": "p:trend", "capital": "100000", "max_pos": "10"}, follow_redirects=True)
-    assert "需要一个「DCF 上涨空间" in r.text
+    assert "needs a buy condition “DCF upside" in r.text
     r = client.post("/scan", data={"strategy": "p:value", "capital": "100000", "max_pos": "5"}, follow_redirects=False)
     loc = r.headers["location"]
     page = client.get(loc)
-    assert page.status_code == 200 and "0 / 5" in page.text and "DCF 上涨空间" in page.text
+    assert page.status_code == 200 and "0 / 5" in page.text and "DCF upside" in page.text
     assert spawned == ["scan"]
-    # a saved (editable) strategy: editing it offers 改用新版本 on the portfolio page
+    # a saved (editable) strategy: editing it offers “Switch to new version” on the portfolio page
     import json as _j
     sid = client.post("/sim/strategy", json={"spec": SPEC}).json()["id"]
     loc = client.post("/scan", data={"strategy": sid, "capital": "100000", "max_pos": "5"}, follow_redirects=False).headers["location"]
-    assert "策略改过了" not in client.get(loc).text
+    assert "Strategy has changed" not in client.get(loc).text
     new = _j.loads(_j.dumps(SPEC))
     new["entry"]["conds"].append({"type": "above_ma", "n": 50})
     client.post("/sim/strategy", json={"spec": new, "id": sid})
-    assert "策略改过了" in client.get(loc).text
+    assert "Strategy has changed" in client.get(loc).text
     r = client.post(loc + "/sync", follow_redirects=True)
-    assert r.status_code == 200 and "策略改过了" not in r.text and "动量" in r.text
+    assert r.status_code == 200 and "Strategy has changed" not in r.text and "momentum" in r.text
 
 
 def test_valuation_page_builds_untracked(tmp_path, monkeypatch):
@@ -160,7 +160,7 @@ def test_valuation_page_builds_untracked(tmp_path, monkeypatch):
     built = []
     monkeypatch.setattr(webapp, "_refresh_valuation", lambda ts: built.extend(ts))
     r = TestClient(webapp.app).get("/v/ZZZQ?from=1")
-    assert r.status_code == 200 and built == ["ZZZQ"] and "回全市场组合" in r.text
+    assert r.status_code == 200 and built == ["ZZZQ"] and "Back to market-wide portfolio" in r.text
 
 
 def test_momentum_filter(conn):
@@ -168,7 +168,7 @@ def test_momentum_filter(conn):
         {"type": "val_ge", "pct": 80}, {"type": "mcap_ge", "b": 10}, {"type": "above_ma", "n": 50}]},
         "exit": {"mode": "any", "conds": [{"type": "val_le", "pct": 5}]}})
     scan.check_spec(spec)
-    with pytest.raises(ValueError, match="全部满足"):
+    with pytest.raises(ValueError, match="All met"):
         scan.check_spec({**spec, "entry": {**spec["entry"], "mode": "any"}})
     aid = scan.open_account(conn, {"id": "3", "spec": spec}, 10000, 0.0, 2, at(9), bench_px=500.0)
     from datetime import date, timedelta

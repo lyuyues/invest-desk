@@ -95,7 +95,7 @@ def test_collect_dedupes_and_strips_xsl(conn):
 
 
 def test_item_labels():
-    assert edgar.item_labels("5.02,9.01") == "5.02 高管/董事变动"
+    assert edgar.item_labels("5.02,9.01") == "5.02 Officer/director change"
 
 
 # ---- event rules ----
@@ -110,7 +110,7 @@ def test_filing_fires_item_filter_and_age():
     f_other = edgar.Filing("a3", "MSFT", 1, "8-K", "2026-11-05", "8.01", "u")
     fires = events.filing_fires([rule], [f_new, f_old, f_other], TIER, TODAY, edgar.item_labels)
     assert [f.rule_id for f in fires] == ["8k:a1"]
-    assert fires[0].level == "urgent" and "高管" in fires[0].title
+    assert fires[0].level == "urgent" and "Officer" in fires[0].title
 
 
 def test_insider_buy_only_purchases_over_min():
@@ -134,7 +134,7 @@ def test_earnings_fires():
     rows = [{"ticker": "MSFT", "date": "2026-11-05", "eps_est": 4.72, "eps_actual": 4.89, "surprise_pct": 3.59},
             {"ticker": "MSFT", "date": "2026-07-29", "eps_est": 4.2, "eps_actual": 4.7, "surprise_pct": 11.8}]
     fires = events.earnings_fires([rule], rows, TIER, TODAY)
-    assert len(fires) == 1 and "超预期 +3.6%" in fires[0].title
+    assert len(fires) == 1 and "Beat +3.6%" in fires[0].title
 
 
 def test_prob_shift():
@@ -231,10 +231,10 @@ def test_filing_summaries(conn):
         v = pages[u]
         return SimpleNamespace(text=v if isinstance(v, str) else "", json=lambda: v)
     seen = []
-    n = filing_notes.run(conn, get, lambda p: seen.append(p) or "CFO 辞职，Jane Doe 接任。",
+    n = filing_notes.run(conn, get, lambda p: seen.append(p) or "CFO resigned; Jane Doe takes over.",
                          datetime(2026, 11, 10, tzinfo=timezone.utc))
     assert n == 1 and "CFO resigned" in seen[0] and "Jane Doe named CFO" in seen[0] and "Revenue up 16%" in seen[0] and "<script" not in seen[0]
-    assert filing_notes.summaries(conn) == {"a1": "CFO 辞职，Jane Doe 接任。"}
+    assert filing_notes.summaries(conn) == {"a1": "CFO resigned; Jane Doe takes over."}
     assert filing_notes.run(conn, get, lambda p: "x", datetime(2026, 11, 10, tzinfo=timezone.utc)) == 0
 
 

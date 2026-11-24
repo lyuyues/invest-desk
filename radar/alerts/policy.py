@@ -55,6 +55,6 @@ def decide(fires: list[Fire], now: datetime, cfg: Config,
             d.logged.append(f)
     if overflow:
         d.logged.extend(overflow)
-        d.digest = Fire("digest", "*", "notice", f"另有 {len(overflow)} 条提醒",
+        d.digest = Fire("digest", "*", "notice", f"Plus {len(overflow)} more alerts",
                         "\n".join(f.title for f in overflow))
     return d

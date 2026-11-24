@@ -49,7 +49,7 @@ app.include_router(_trade_router)
 
 
 LEVEL_ICON = {"urgent": "🔴", "notice": "🟡", "log": "⚪"}
-CHANNEL_NAMES = {"screen": "量化筛选", "theme": "主题", "smart_money": "聪明钱"}
+CHANNEL_NAMES = {"screen": "Quant screen", "theme": "Theme", "smart_money": "Smart money"}
 
 
 def _ctx():
@@ -96,7 +96,7 @@ async def agent_ask(request: Request):
 
     async def gen():
         if _agent_slots.locked():
-            yield _sse({"t": "status", "v": "排队中…"})
+            yield _sse({"t": "status", "v": "Queued…"})
         async with _agent_slots:
             async for ev in agent.run(argv, prompt, workdir):
                 if await request.is_disconnected():
@@ -163,7 +163,7 @@ def _fetch_new(ticker: str) -> None:
         pass
     try:
         from radar.collectors import macro
-        macro.store_earnings(conn, macro.fetch_earnings([ticker]))  # so it shows on 财报 right away
+        macro.store_earnings(conn, macro.fetch_earnings([ticker]))  # so it shows on Earnings right away
         conn.commit()
     except Exception:  # never break the request on data-source errors
         pass
@@ -407,8 +407,8 @@ def theses_page(request: Request):
     finally:
         conn.close()
     order = [theses.GENERAL, *cfg.holdings, *[t for t in cfg.watchlist if t not in cfg.holdings]]
-    items = [{"ticker": t, "name": "总体原则" if t == theses.GENERAL else t,
-              "tier": "" if t == theses.GENERAL else ("持仓" if t in cfg.holdings else "关注"),
+    items = [{"ticker": t, "name": "General principles" if t == theses.GENERAL else t,
+              "tier": "" if t == theses.GENERAL else ("Holdings" if t in cfg.holdings else "Watchlist"),
               "body": th[t]["body"], "is_default": th[t]["is_default"],
               "updated": local_time(th[t]["updated"], cfg.tz),
               "notes": [_note_view(n, cfg.tz) for n in recent.get(t, [])], "ncount": ncount.get(t, 0)}
@@ -475,7 +475,7 @@ def _notes_page(request: Request, ticker: str = "", kind: str = "", edit: int | 
 @app.get("/notes", response_class=HTMLResponse)
 def notes_page(request: Request, ticker: str = "", kind: str = "", edit: int | None = None,
                new: int = 0, ref: str = "", back: str = "", deleted: int | None = None):
-    """List + quick add. ?new=1&ticker=X&kind=财报&ref=DATE&back=… prefills the form (「记一条」 on 财报)."""
+    """List + quick add. ?new=1&ticker=X&kind=Earnings&ref=DATE&back=… prefills the form (“Add note” on Earnings)."""
     form = {"ticker": ticker.upper(), "kind": kind, "earnings_date": ref, "back": _safe_back(back, "")} if new else None
     return _notes_page(request, ticker, "" if new else kind, edit, form, deleted=deleted)
 
@@ -583,7 +583,7 @@ def valuation_detail(request: Request, ticker: str):
         conn.close()
     return _render(request, "valuation_detail.html", {
         "ticker": ticker, "v": v["data"] if v else None, "mine": v["mine"] if v else None,
-        "error": (v["error"] if v else "还没有估值数据，点「重新拉 SEC 数据」"),
+        "error": (v["error"] if v else "No valuation data yet; click “Re-fetch SEC data”"),
         "updated": local_time(v["updated"], cfg.tz) if v else "—", "price": price,
         "from_scan": request.query_params.get("from")}, "valuation")
 

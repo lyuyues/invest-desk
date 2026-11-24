@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -75,8 +75,8 @@
   tr.enote summary::-webkit-details-marker { display: none; }
   tr.enote .prose { font-size: 14px; padding: 6px 2px 10px; }
   tr.lv3 td:first-child { box-shadow: inset 3px 0 0 var(--down); padding-left: 8px; }
-  .chip.lvl-高 { color: var(--down); border-color: var(--down); font-weight: 600; }
-  .chip.lvl-中 { color: var(--accent); border-color: var(--accent); }
+  .chip.lvl-High { color: var(--down); border-color: var(--down); font-weight: 600; }
+  .chip.lvl-Medium { color: var(--accent); border-color: var(--accent); }
   .chip.tag { color: var(--ink); }
   .scroll { overflow-x: auto; }
   .prose { line-height: 1.65; overflow-wrap: anywhere; }
@@ -204,26 +204,26 @@
 </style>
 </head>
 {% macro navlinks() %}
-    {% for key, label, href in [('home','总览','/'),('daily','日报','/daily'),('macro','宏观','/macro'),('reddit','Reddit','/reddit'),('discover','发现','/discover'),('valuation','估值','/valuation'),('earnings','财报','/earnings'),('theses','逻辑','/theses'),('notes','笔记','/notes'),('reports','周报','/reports'),('trade','模拟交易','/trade'),('sim','回测','/sim'),('paper','策略模拟','/paper')] + ledger_nav|default([]) %}
+    {% for key, label, href in [('home','Overview','/'),('daily','Daily brief','/daily'),('macro','Macro','/macro'),('reddit','Reddit','/reddit'),('discover','Discover','/discover'),('valuation','Valuation','/valuation'),('earnings','Earnings','/earnings'),('theses','Theses','/theses'),('notes','Notes','/notes'),('reports','Weekly report','/reports'),('trade','Paper trading','/trade'),('sim','Backtest','/sim'),('paper','Strategy simulation','/paper')] + ledger_nav|default([]) %}
     <a href="{{ href }}" class="{{ 'on' if active == key else '' }}">{{ label }}</a>
     {% endfor %}
 {% endmacro %}
 <body>
 <nav id="side"><a class="brand" href="/">Invest Radar</a>{{ navlinks() }}</nav>
-<div class="gut" data-pane="side" title="拖动调整宽度，双击还原"></div>
+<div class="gut" data-pane="side" title="Drag to resize, double-click to reset"></div>
 <main>
   <header><a href="/">Invest Radar</a>{% block sub %}{% endblock %}</header>
   <nav class="top">{{ navlinks() }}</nav>
   {% block content %}{% endblock %}
 </main>
-<button id="afab" aria-label="打开助手" onclick="agentOpen(true)">助手</button>
-<div class="gut" data-pane="agent" title="拖动调整宽度，双击还原"></div>
-<aside id="agent" aria-label="投资助手">
-  <div class="ahead"><b>助手</b><button onclick="agentReset()">新对话</button><button id="aclose" onclick="agentOpen(false)">关闭</button></div>
+<button id="afab" aria-label="Open assistant" onclick="agentOpen(true)">Assistant</button>
+<div class="gut" data-pane="agent" title="Drag to resize, double-click to reset"></div>
+<aside id="agent" aria-label="Investment assistant">
+  <div class="ahead"><b>Assistant</b><button onclick="agentReset()">New chat</button><button id="aclose" onclick="agentOpen(false)">Close</button></div>
   <div id="alog"></div>
   <form id="aform" onsubmit="agentSend(event)">
-    <textarea id="aq" rows="1" placeholder="问点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
-    <button id="asend">发送</button>
+    <textarea id="aq" rows="1" placeholder="Ask something... (Enter to send, Shift+Enter for newline)"></textarea>
+    <button id="asend">Send</button>
   </form>
 </aside>
 <script>
@@ -252,7 +252,7 @@
   const KEY = LEDGER ? LEDGER_UI.key : "radar-agent";
   const log = document.getElementById("alog"), q = document.getElementById("aq"), send = document.getElementById("asend");
   const SUGG = LEDGER ? LEDGER_UI.sugg
-                      : ["这周我的持仓有什么需要注意的？", "解释一下我正在看的这个页面", "Fed 加息预期对我的持仓意味着什么？"];
+                      : ["What should I watch in my holdings this week?", "Explain the page I’m looking at", "What do Fed rate-hike expectations mean for my holdings?"];
   let st;
   try { st = JSON.parse(sessionStorage.getItem(KEY)) || null; } catch (e) { st = null; }
   st = st || { sid: null, msgs: [] };
@@ -265,7 +265,7 @@
       l = l.replace(/`([^`]+)`/g, "<code>$1</code>")
            .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
            .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-           .replace(/(^|[\s(（])(https?:\/\/[^\s)）<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+           .replace(/(^|[\s(])(https?:\/\/[^\s)<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
       if (/^#{1,6}\s/.test(line)) return '<div class="h">' + l.replace(/^#{1,6}\s/, "") + "</div>";
       if (/^\s*[-*]\s/.test(line)) return "<div>• " + l.replace(/^\s*[-*]\s/, "") + "</div>";
       if (/^\|?\s*:?-{3,}/.test(line)) return "";
@@ -283,7 +283,7 @@
     if (!st.msgs.length) {
       const s = document.createElement("div"); s.className = "sugg";
       s.innerHTML = LEDGER ? LEDGER_UI.intro
-                           : '<div class="muted">基于仪表盘数据 + 联网搜索回答，会自动带上你正在看的页面。</div>';
+                           : '<div class="muted">Answers use dashboard data + web search, and automatically include the page you’re viewing.</div>';
       SUGG.forEach(t => { const b = document.createElement("button"); b.textContent = t;
         b.onclick = () => { q.value = t; agentSend(); }; s.appendChild(b); });
       log.appendChild(s);
@@ -305,7 +305,7 @@
     q.value = ""; q.style.height = "auto"; send.disabled = true;
     st.msgs.push({ role: "user", text }); const bot = { role: "bot", text: "" }; st.msgs.push(bot); save(); render();
     const el = log.lastChild, status = document.createElement("div");
-    status.className = "st"; status.textContent = "思考中…"; el.appendChild(status);
+    status.className = "st"; status.textContent = "Thinking…"; el.appendChild(status);
     const paint = () => { el.innerHTML = md(bot.text); if (status.textContent) el.appendChild(status);
                           log.scrollTop = log.scrollHeight; };
     try {
@@ -323,15 +323,15 @@
           const ev = JSON.parse(chunk.slice(6));
           if (ev.t === "session" && ev.v) st.sid = ev.v;
           else if (ev.t === "text") { bot.text += ev.v; status.textContent = ""; }
-          else if (ev.t === "tool") status.textContent = "🔎 " + ({WebSearch: "搜索中", WebFetch: "读取网页"}[ev.v] || ev.v) + "…";
+          else if (ev.t === "tool") status.textContent = "🔎 " + ({WebSearch: "Searching", WebFetch: "Reading page"}[ev.v] || ev.v) + "…";
           else if (ev.t === "status") status.textContent = ev.v;
-          else if (ev.t === "error") { status.textContent = ""; st.msgs.push({ role: "err", text: "出错：" + ev.v }); }
+          else if (ev.t === "error") { status.textContent = ""; st.msgs.push({ role: "err", text: "Error: " + ev.v }); }
           else if (ev.t === "done") status.textContent = "";
           paint(); save();
         }
       }
     } catch (err) {
-      st.msgs.push({ role: "err", text: "出错：" + err.message });
+      st.msgs.push({ role: "err", text: "Error: " + err.message });
     }
     if (!bot.text) st.msgs.splice(st.msgs.indexOf(bot), 1);
     save(); render(); send.disabled = false;
@@ -371,9 +371,9 @@
     const pct = pcts.every(Boolean), s = [...xs].sort((a, b) => a - b), n = xs.length;
     const sum = xs.reduce((a, b) => a + b, 0);
     const med = n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
-    const cells = [["个数", n], ["平均", fmt(sum / n, pct)], ["中位数", fmt(med, pct)],
-                   ["最小", fmt(s[0], pct)], ["最大", fmt(s[n - 1], pct)]];
-    if (!pct) cells.push(["合计", fmt(sum, false)]);
+    const cells = [["Count", n], ["Mean", fmt(sum / n, pct)], ["Median", fmt(med, pct)],
+                   ["Min", fmt(s[0], pct)], ["Max", fmt(s[n - 1], pct)]];
+    if (!pct) cells.push(["Total", fmt(sum, false)]);
     box.replaceChildren(...cells.map(([k, v]) => { const e = document.createElement("span");
       const b = document.createElement("b"); b.textContent = v; e.append(k + " ", b); return e; }));
     box.hidden = false;

@@ -4,7 +4,7 @@ from typing import Optional
 
 
 # =======================================
-#  从 Stooq 获取最新收盘价
+#  Get the latest close from Stooq
 # =======================================
 
 # Optional manual overrides for sector inference (ticker -> sector key).
@@ -13,7 +13,7 @@ MANUAL_SECTOR_OVERRIDE = {}
 
 def get_latest_price_stooq(ticker: str) -> float:
     """
-    从 Stooq 获取美股最新收盘价（最近一个交易日的 Close）。
+    Get the latest US stock close from Stooq (Close of the most recent trading day).
     AAPL -> aapl.us
     """
     symbol = ticker.lower() + ".us"
@@ -22,23 +22,23 @@ def get_latest_price_stooq(ticker: str) -> float:
     try:
         df = pd.read_csv(url)
     except Exception as e:
-        raise RuntimeError(f"Stooq 连接失败: {e}")
+        raise RuntimeError(f"Stooq connection failed: {e}")
 
     if df is None or df.empty:
-        raise ValueError(f"Stooq 无返回数据: {ticker}")
+        raise ValueError(f"Stooq returned no data: {ticker}")
 
     return float(df["Close"].iloc[-1])
 
 
 # =======================================
-#  基于 SEC SIC code 推断行业 → sector key
+#  Infer sector from the SEC SIC code → sector key
 # =======================================
 
 def map_sic_to_sector(sic: Optional[int]) -> str:
     """
-    粗略把 SEC 的 SIC code 映射到我们定义的几个大类：
+    Roughly map SEC SIC codes into a few broad categories we define:
         TECH / CONSUMER / BANK / INSURANCE / ENERGY / PHARMA
-    不认识的就默认 CONSUMER。
+    Anything unrecognized defaults to CONSUMER.
     """
     if sic is None:
         return "CONSUMER"
@@ -48,31 +48,31 @@ def map_sic_to_sector(sic: Optional[int]) -> str:
     except Exception:
         return "CONSUMER"
 
-    # 下面是非常粗粒度的映射，可以以后慢慢调
+    # The mapping below is very coarse; refine it over time
     if 3570 <= s <= 3579 or 7370 <= s <= 7379 or 3670 <= s <= 3699:
         return "TECH"
-    if 4810 <= s <= 4899:  # 电信、通信
+    if 4810 <= s <= 4899:  # Telecom, communications
         return "TECH"
 
-    if 2830 <= s <= 2839 or 3840 <= s <= 3859:  # 制药 & 医疗器械
+    if 2830 <= s <= 2839 or 3840 <= s <= 3859:  # Pharma & medical devices
         return "PHARMA"
 
-    if 6000 <= s <= 6199:  # 银行、金融服务
+    if 6000 <= s <= 6199:  # Banks, financial services
         return "BANK"
-    if 6200 <= s <= 6299 or 6300 <= s <= 6499:  # 投顾、保险等
+    if 6200 <= s <= 6299 or 6300 <= s <= 6499:  # Advisory, insurance, etc.
         return "INSURANCE"
 
-    if 1300 <= s <= 1399 or 2900 <= s <= 2999:  # 石油、天然气、炼油
+    if 1300 <= s <= 1399 or 2900 <= s <= 2999:  # Oil, gas, refining
         return "ENERGY"
 
-    # default：消费、其他
+    # default: consumer, other
     return "CONSUMER"
 
 
 def infer_sector_from_facts(facts: dict, ticker: str) -> str:
     tic = ticker.upper()
 
-    # 未来可能增加 MANUAL OVERRIDE，代码如下：
+    # A MANUAL OVERRIDE may be added later, code below:
     if tic in MANUAL_SECTOR_OVERRIDE:
         return MANUAL_SECTOR_OVERRIDE[tic]
 
@@ -81,21 +81,21 @@ def infer_sector_from_facts(facts: dict, ticker: str) -> str:
 
 
 # =======================================
-# 基于开始/结束日期判断是否为完整年度
+# Decide whether a period is a full year based on start/end dates
 # =======================================
 from datetime import datetime
 
 def is_true_annual_period(start_date: str, end_date: str) -> bool:
     """
-    判断一个披露区间是不是“接近一年”的年度数据。
+    Decide whether a reported period is“close to one year”, i.e. annual data.
 
-    逻辑：
-    - 解析 start / end 日期
-    - 计算天数差 days = (end-start)+1
-    - 在 [330, 400] 天之间就当作“年度”，否则认为是季度 / 半年 / 其他
+    Logic:
+    - Parse start / end dates
+    - Compute the day difference days = (end-start)+1
+    - Between [330, 400] days, treat it as“annual”, otherwise treat it as quarterly / semi-annual / other
 
-    注意：
-    - 解析失败或任何异常 → 返回 False（宁可少要，不要错要）
+    Note:
+    - Parse failure or any exception → return False (better to miss data than to take wrong data)
     """
     try:
         if not start_date or not end_date:

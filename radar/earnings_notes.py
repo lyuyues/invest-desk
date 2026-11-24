@@ -18,8 +18,8 @@ from radar.weekly import Runner, _fmt
 
 log = logging.getLogger(__name__)
 PROMPT = Path(__file__).parent / "prompts" / "earnings_note.md"
-TAG_RE = re.compile(r"^\s*TAGS:\s*(.*?)\s*\|\s*重要度[:：]\s*(高|中|低)\s*$", re.M)
-LEVELS = {"高": 3, "中": 2, "低": 1}
+TAG_RE = re.compile(r"^\s*TAGS:\s*(.*?)\s*\|\s*Importance[:: ]\s*(High|Medium|Low)\s*$", re.M)
+LEVELS = {"High": 3, "Medium": 2, "Low": 1}
 
 
 def parse(text: str) -> tuple[str, list[str], str | None]:
@@ -29,7 +29,7 @@ def parse(text: str) -> tuple[str, list[str], str | None]:
         pass
     if not m:
         return text.strip(), [], None
-    tags = [t.strip() for t in re.split(r"[,，、]", m.group(1)) if t.strip()][:5]
+    tags = [t.strip() for t in re.split(r"[,]", m.group(1)) if t.strip()][:5]
     body = (text[:m.start()] + text[m.end():]).strip()
     return body, tags, m.group(2)
 
@@ -58,14 +58,14 @@ def build_input(conn: sqlite3.Connection, e: sqlite3.Row, now: datetime) -> str:
                           "AND filed BETWEEN ? AND ? ORDER BY filed LIMIT 1",
                           (e["ticker"], e["date"], (datetime.fromisoformat(e["date"]) + timedelta(days=3)).date().isoformat())
                           ).fetchone()
-    L = [f"- 标的：{e['ticker']}", f"- 财报日期：{e['date']}（Yahoo Finance 记录，盘前/盘后未区分）",
-         f"- EPS：实际 {_fmt(e['eps_actual'])} vs 预期 {_fmt(e['eps_est'])}（{_fmt(e['surprise_pct'], '{:+.1f}%')}）",
-         f"- 股价反应（财报前一交易日收盘 → 财报后第一个交易日收盘）："
-         f"{_fmt(rec['move_pct'] if rec else None, '{:+.1f}%', '尚无数据')}"]
+    L = [f"- Ticker: {e['ticker']}", f"- Earnings date: {e['date']} (per Yahoo Finance; pre-/post-market not distinguished)",
+         f"- EPS: actual {_fmt(e['eps_actual'])} vs est. {_fmt(e['eps_est'])} ({_fmt(e['surprise_pct'], '{:+.1f}%')})",
+         f"- Price reaction (close on the trading day before earnings → close on the first trading day after earnings): "
+         f"{_fmt(rec['move_pct'] if rec else None, '{:+.1f}%', 'No data yet')}"]
     if filing:
-        L.append(f"- SEC 8-K（2.02 业绩公告）：{filing['url']}")
-    L += ["", "## 投资逻辑" + ("（默认模板，用户未修改）" if th and th["is_default"] else ""),
-          th["body"] if th else "（无）"]
+        L.append(f"- SEC 8-K (2.02 results announcement): {filing['url']}")
+    L += ["", "## Investment thesis" + (" (default template, not edited by the user)" if th and th["is_default"] else ""),
+          th["body"] if th else "(none)"]
     return "\n".join(L)
 
 

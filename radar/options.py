@@ -59,7 +59,7 @@ def init(conn) -> None:
 def parse(sym: str) -> dict:
     m = OCC.match(sym.upper().strip())
     if not m:
-        raise OrderError("期权代码格式不对")
+        raise OrderError("Invalid option symbol")
     u, d, r, k = m.groups()
     return {"contract": m.group(0), "underlying": u, "right": r, "strike": int(k) / 1000,
             "expiry": date(2000 + int(d[:2]), int(d[2:4]), int(d[4:]))}
@@ -141,7 +141,7 @@ def quote(contract: str) -> dict:
     info = parse(contract)
     row = chain(info["underlying"], info["expiry"].isoformat())["by"].get(info["contract"])
     if not row:
-        raise ValueError(f"期权链里找不到 {label(info)}")
+        raise ValueError(f"Not found in the option chain: {label(info)}")
     return row
 
 
@@ -199,18 +199,18 @@ def _check(conn, aid: int, cash: float, contract: str | None = None, dqty: int =
         info = parse(contract)
         p = pos.setdefault(contract, {"qty": 0, **info})
         if p["qty"] and (p["qty"] > 0) != (p["qty"] + dqty > 0) and p["qty"] + dqty != 0:
-            return f"最多只能平掉现有的 {abs(p['qty'])} 张，不能一笔反手"
+            return f"You can close at most the existing {abs(p['qty'])} contracts; you can’t reverse the position in one order"
         p["qty"] += dqty
     reserved, locked = constraints(conn, aid, pos)
     if cash < reserved - 1e-6:
-        return (f"现金不够：卖 put 需要冻结 {reserved:,.0f} 作为接股的钱，成交后现金只有 {cash:,.0f}"
-                if contract else f"现金不够：其中 {reserved:,.0f} 已为卖出的 put 冻结")
+        return (f"Not enough cash: selling the put requires reserving {reserved:,.0f} to buy the shares, but cash after the fill would be only {cash:,.0f}"
+                if contract else f"Not enough cash: {reserved:,.0f} of it is already reserved for sold puts")
     stocks, _ = trade.book(conn, aid)
     for t, need in locked.items():
         have = stocks.get(t, {}).get("qty", 0) + (stock_delta or {}).get(t, 0)
         if have + 1e-9 < need:
-            return (f"备兑不足：卖 call 需要持有 {need:g} 股 {t}，现在只有 {have:g} 股" if contract
-                    else f"这些股票被卖出的 call 锁定（{need:g} 股 {t}），先买回 call 才能卖")
+            return (f"Not enough shares to cover: selling the call requires holding {need:g} shares of {t}, you have only {have:g}" if contract
+                    else f"These shares are locked by a sold call ({need:g} shares of {t}); buy back the call before selling")
     return None
 
 
@@ -230,13 +230,13 @@ def value(conn, aid: int, now: datetime, q=None, spot=None) -> tuple[float, list
         try:
             s = spot(p["underlying"])
         except Exception as e:
-            errs.append(f"{p['underlying']} 报价失败：{e}")
+            errs.append(f"{p['underlying']} quote failed: {e}")
         expired = p["expiry"] < now.astimezone(NY).date() or years_left(p["expiry"], now) == 0
         if not expired:
             try:
                 row = q(c)
             except Exception as e:
-                errs.append(f"{label(p)} 报价失败：{e}")
+                errs.append(f"{label(p)} quote failed: {e}")
         if row and row["mark"] > 0:
             mark, iv = row["mark"], row["iv"]
         elif s is not None:
@@ -265,7 +265,7 @@ def _fill(conn, o, px: float, when: datetime, note: str = "") -> bool:
     cash = a["cash"] - signed * px * MULT - fee
     err = _check(conn, o["account_id"], cash, o["contract"], signed)
     if err is None and cash < -1e-6:
-        err = f"现金不足：需要 {px * MULT * o['qty'] + fee:,.2f}，可用 {a['cash']:,.2f}"
+        err = f"Insufficient cash: need {px * MULT * o['qty'] + fee:,.2f}, available {a['cash']:,.2f}"
     if err:
         conn.execute("UPDATE opt_orders SET status='rejected', msg=? WHERE id=?", (err, o["id"]))
         return False
@@ -281,7 +281,7 @@ def _live_px(o, row) -> tuple[float | None, str]:
     if o["kind"] == "market":
         if side_px > 0:
             return side_px, ""
-        return (row["last"], "没有买卖报价，按最近成交价成交") if row["last"] > 0 else (None, "")
+        return (row["last"], "No bid/ask quote; filled at the last trade price") if row["last"] > 0 else (None, "")
     if side_px > 0 and (side_px <= o["px"] if o["side"] == "buy" else side_px >= o["px"]):
         return side_px, ""
     return None, ""
@@ -292,25 +292,25 @@ def place(conn, aid: int, f: dict, now: datetime, q=quote) -> int:
     init(conn)
     a = trade.account(conn, aid)
     if not a or not a["active"]:
-        raise OrderError("账户不存在或已关闭")
+        raise OrderError("Account does not exist or is closed")
     info = parse(f.get("contract") or "")
     side, kind = f.get("side"), f.get("kind") or "market"
     if side not in ("buy", "sell") or kind not in ("market", "limit"):
-        raise OrderError("订单类型不对")
+        raise OrderError("Invalid order type")
     if years_left(info["expiry"], now) <= 0:
-        raise OrderError("这个合约已经到期")
+        raise OrderError("This contract has already expired")
     reason = (f.get("reason") or "").strip()
     if not reason:
-        raise OrderError("写一句为什么要做这笔交易——这是学习的关键")
+        raise OrderError("Write one sentence on why you are making this trade. This is the key to learning")
     try:
         qty = float(f["qty"])
         px = float(f["px"]) if f.get("px") not in (None, "") else None
     except (TypeError, ValueError, KeyError):
-        raise OrderError("数量 / 价格需要是数字")
+        raise OrderError("Quantity / price must be numbers")
     if qty <= 0 or qty != int(qty) or qty > 500:
-        raise OrderError("张数要是 1–500 的整数")
+        raise OrderError("Contracts must be an integer from 1 to 500")
     if kind == "limit" and not (px and px > 0):
-        raise OrderError("限价单需要价格")
+        raise OrderError("Limit orders need a price")
     row = q(info["contract"])
     cur = conn.execute(
         "INSERT INTO opt_orders (account_id, created, contract, underlying, right, strike, expiry, side, kind, qty, px, "
@@ -321,10 +321,10 @@ def place(conn, aid: int, f: dict, now: datetime, q=quote) -> int:
     fill, note = _live_px(o, row)
     if fill is not None:
         if not trade.market_open(now):
-            note = ("非交易时段：按收盘时的报价成交；" + note).rstrip("；")
+            note = ("Outside market hours: filled at the closing quote; " + note).rstrip("; ")
         _fill(conn, o, fill, now, note)
     elif kind == "market":
-        conn.execute("UPDATE opt_orders SET status='rejected', msg=? WHERE id=?", ("这个合约现在没有报价", o["id"]))
+        conn.execute("UPDATE opt_orders SET status='rejected', msg=? WHERE id=?", ("This contract has no quote right now", o["id"]))
     else:
         err = _check(conn, aid, a["cash"] - (px * MULT * qty if side == "buy" else 0) + (px * MULT * qty if side == "sell" else 0),
                      info["contract"], int(qty) if side == "buy" else -int(qty))
@@ -357,7 +357,7 @@ def sweep_live(conn, aid: int, now: datetime, q=quote) -> int:
         except Exception:
             continue
         if fill is not None:
-            n += _fill(conn, o, fill, now, "盘中报价撮合")
+            n += _fill(conn, o, fill, now, "Intraday quote fill")
     conn.commit()
     return n
 
@@ -365,7 +365,7 @@ def sweep_live(conn, aid: int, now: datetime, q=quote) -> int:
 def _deliver(conn, aid: int, ticker: str, side: str, shares: int, px: float, when: datetime, reason: str) -> None:
     conn.execute("INSERT INTO trade_orders (account_id, created, ticker, side, kind, qty, status, filled_at, fill_px, fee, "
                  "reason, msg) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                 (aid, _iso(when), ticker, side, "market", shares, "filled", _iso(when), px, 0.0, reason, "期权交割"))
+                 (aid, _iso(when), ticker, side, "market", shares, "filled", _iso(when), px, 0.0, reason, "Option delivery"))
     conn.execute("UPDATE trade_accounts SET cash=cash+? WHERE id=?", ((px if side == "sell" else -px) * shares, aid))
 
 
@@ -390,7 +390,7 @@ def settle(conn, aid: int, done: date, bars=trade.daily_bars) -> int:
         q = abs(p["qty"])
         shares = q * MULT
         long, call = p["qty"] > 0, p["right"] == "C"
-        how, note = "expire", f"到期价外，作废（{p['underlying']} 收盘 {s:.2f}）"
+        how, note = "expire", f"Expired out of the money, voided ({p['underlying']} close {s:.2f})"
         deliver = None
         if intr:
             a = trade.account(conn, aid)
@@ -399,23 +399,23 @@ def settle(conn, aid: int, done: date, bars=trade.daily_bars) -> int:
             if not long:
                 how = "assign"
                 deliver = ("sell" if call else "buy")
-                note = (f"被指派：按 {p['strike']:g} 卖出 {shares} 股" if call else f"被指派：按 {p['strike']:g} 买入 {shares} 股")
+                note = (f"Assigned at strike {p['strike']:g}: sold {shares} shares" if call else f"Assigned at strike {p['strike']:g}: bought {shares} shares")
             elif call and cash_after >= s * shares:
-                how, deliver, note = "exercise", "buy", f"自动行权：按 {p['strike']:g} 买入 {shares} 股"
+                how, deliver, note = "exercise", "buy", f"Auto-exercised at strike {p['strike']:g}: bought {shares} shares"
             elif not call and stocks.get(p["underlying"], {}).get("qty", 0) >= shares:
-                how, deliver, note = "exercise", "sell", f"自动行权：按 {p['strike']:g} 卖出 {shares} 股"
+                how, deliver, note = "exercise", "sell", f"Auto-exercised at strike {p['strike']:g}: sold {shares} shares"
             else:
-                how, note = "cash", f"到期价内，按内在价值 {intr:.2f} 现金结算（账户接不了这些股票）"
-            note += f"（{p['underlying']} 收盘 {s:.2f}）"
+                how, note = "cash", f"Expired in the money, cash-settled at intrinsic value {intr:.2f} (the account cannot take delivery of these shares)"
+            note += f"({p['underlying']} close {s:.2f})"
         conn.execute(
             "INSERT INTO opt_orders (account_id, created, contract, underlying, right, strike, expiry, side, kind, qty, status, "
             "filled_at, fill_px, fee, reason, how, msg) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (aid, _iso(when), c, p["underlying"], p["right"], p["strike"], p["expiry"].isoformat(),
-             "sell" if long else "buy", "market", q, "filled", _iso(when), intr, 0.0, "到期结算", how, note))
+             "sell" if long else "buy", "market", q, "filled", _iso(when), intr, 0.0, "Expiry settlement", how, note))
         conn.execute("UPDATE trade_accounts SET cash=cash+? WHERE id=?", ((intr if long else -intr) * shares, aid))
         if deliver:
             # option closed at intrinsic + shares at the close  ==  shares at the strike
-            _deliver(conn, aid, p["underlying"], deliver, shares, s, when, f"{label(p)} {note.split('（')[0]}")
+            _deliver(conn, aid, p["underlying"], deliver, shares, s, when, f"{label(p)} {note.split('(')[0]}")
         n += 1
     conn.commit()
     return n
@@ -439,11 +439,11 @@ def run_job(conn, now: datetime, bars=trade.daily_bars) -> str:
             if start <= bar["date"] <= min(done, exp):
                 px = trade.match_bar(o, bar)
                 if px is not None:
-                    filled += _fill(conn, o, px, datetime.combine(bar["date"], time(16, 0), NY), f"{bar['date']} 日线撮合")
+                    filled += _fill(conn, o, px, datetime.combine(bar["date"], time(16, 0), NY), f"{bar['date']} daily-bar fill")
                     break
         else:
             if exp <= done:
-                conn.execute("UPDATE opt_orders SET status='cancelled', msg='合约到期，挂单作废' WHERE id=?", (o["id"],))
+                conn.execute("UPDATE opt_orders SET status='cancelled', msg='Contract expired, open order cancelled' WHERE id=?", (o["id"],))
     conn.commit()
     settled = 0
     for a in conn.execute("SELECT id FROM trade_accounts WHERE active=1").fetchall():

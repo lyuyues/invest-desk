@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_chart.html" import svgchart, pct, chart_css %}
-{% block title %}{{ a.name }} · 模拟交易{% endblock %}
+{% block title %}{{ a.name }} · Paper trading {% endblock %}
 {% block content %}
 {{ chart_css() }}
 <style>
@@ -30,218 +30,218 @@
 {% for e in errs %}<div class="errmsg">{{ e }}</div>{% endfor %}
 
 <section>
-  <h2>{{ a.name }} {% if not a.active %}<span class="chip">已关闭</span>{% endif %}
-    <span class="chip">{{ '交易中' if open else '休市' }}</span></h2>
+  <h2>{{ a.name }} {% if not a.active %}<span class="chip">Closed</span>{% endif %}
+    <span class="chip">{{ 'Market open' if open else 'Market closed' }}</span></h2>
   <div class="stats">
-    <div>总资产<b>{{ '{:,.0f}'.format(equity) }}</b></div>
-    <div>收益<b>{{ pct(equity / a.capital - 1, true) }}</b></div>
-    <div>同期 SPY<b>{{ pct(bench / a.capital - 1, true) if bench else '—' }}</b></div>
-    <div>现金<b>{{ '{:,.0f}'.format(a.cash) }}</b>{% if reserved %}<span class="muted" style="font-size:12px">其中 {{ '{:,.0f}'.format(reserved) }} 为卖 put 冻结</span>{% endif %}</div>
-    <div>仓位<b>{{ pct((equity - a.cash) / equity) if equity else '—' }}</b></div>
-    <div>最大回撤<b>{{ pct(mdd) }}</b></div>
+    <div>Total equity<b>{{ '{:,.0f}'.format(equity) }}</b></div>
+    <div>Return<b>{{ pct(equity / a.capital - 1, true) }}</b></div>
+    <div>SPY (same period)<b>{{ pct(bench / a.capital - 1, true) if bench else '—' }}</b></div>
+    <div>Cash<b>{{ '{:,.0f}'.format(a.cash) }}</b>{% if reserved %}<span class="muted" style="font-size:12px">of which {{ '{:,.0f}'.format(reserved) }} reserved for short puts</span>{% endif %}</div>
+    <div>Exposure<b>{{ pct((equity - a.cash) / equity) if equity else '—' }}</b></div>
+    <div>Max drawdown<b>{{ pct(mdd) }}</b></div>
   </div>
   {% if eq %}<div style="margin-top:10px">{{ svgchart(eq) }}</div>{% endif %}
 </section>
 
 {% if a.active %}
 <section>
-  <h2>下单 <a class="chipbtn" href="/trade/{{ a.id }}/opt" style="font-size:13px;font-weight:normal">期权 →</a></h2>
+  <h2>Order <a class="chipbtn" href="/trade/{{ a.id }}/opt" style="font-size:13px;font-weight:normal">Options →</a></h2>
   <form class="ticket" method="post" action="/trade/{{ a.id }}/order" id="ticket">
-    <label>代码<input name="ticker" id="tk" value="{{ pre_ticker }}" required style="text-transform:uppercase" autocomplete="off"></label>
-    <label>方向<div class="sidepick">
-      <label><input type="radio" name="side" value="buy" {{ 'checked' if pre_side != 'sell' }}><span class="b">买入</span></label>
-      <label><input type="radio" name="side" value="sell" {{ 'checked' if pre_side == 'sell' }}><span class="s">卖出</span></label></div></label>
-    <label>类型<select name="kind" id="kind">
-      <option value="market">市价</option><option value="limit">限价</option><option value="stop">止损（卖出）</option></select></label>
-    <label>数量（股）<input name="qty" id="qty" type="number" min="1" step="1" required></label>
-    <label id="pxl" style="display:none"><span id="pxlab">价格</span><input name="px" id="px" type="number" step="0.01" min="0"></label>
-    <label class="buyonly">计划止损价<input name="plan_stop" id="stop" type="number" step="0.01" min="0" placeholder="可选，建议填"></label>
-    <label class="buyonly">目标价<input name="plan_target" id="target" type="number" step="0.01" min="0" placeholder="可选"></label>
-    <label class="wide">为什么做这笔交易？（必填）<textarea name="reason" required placeholder="例：突破 3 个月平台、放量；如果跌回 180 以下说明判断错了"></textarea></label>
-    <div class="wide" id="risk"><span class="muted">输入代码查看现价</span></div>
-    <div class="wide"><button class="btn" id="go">提交订单</button></div>
+    <label>Ticker<input name="ticker" id="tk" value="{{ pre_ticker }}" required style="text-transform:uppercase" autocomplete="off"></label>
+    <label>Side<div class="sidepick">
+      <label><input type="radio" name="side" value="buy" {{ 'checked' if pre_side != 'sell' }}><span class="b">Buy</span></label>
+      <label><input type="radio" name="side" value="sell" {{ 'checked' if pre_side == 'sell' }}><span class="s">Sell</span></label></div></label>
+    <label>Type<select name="kind" id="kind">
+      <option value="market">Market</option><option value="limit">Limit</option><option value="stop">Stop (sell)</option></select></label>
+    <label>Quantity (shares)<input name="qty" id="qty" type="number" min="1" step="1" required></label>
+    <label id="pxl" style="display:none"><span id="pxlab">Price</span><input name="px" id="px" type="number" step="0.01" min="0"></label>
+    <label class="buyonly">Planned stop<input name="plan_stop" id="stop" type="number" step="0.01" min="0" placeholder="Optional, recommended"></label>
+    <label class="buyonly">Target<input name="plan_target" id="target" type="number" step="0.01" min="0" placeholder="Optional"></label>
+    <label class="wide">Why this trade? (required)<textarea name="reason" required placeholder="e.g. breakout from a 3-month range on volume; falling back below 180 means I was wrong"></textarea></label>
+    <div class="wide" id="risk"><span class="muted">Enter a ticker to see the price</span></div>
+    <div class="wide"><button class="btn" id="go">Submit order</button></div>
   </form>
 </section>
 {% endif %}
 
 <section>
-  <h2>持仓</h2>
+  <h2>Holdings</h2>
   {% if positions %}
   <div class="scroll"><table>
-    <tr><th>代码</th><th>股数</th><th>成本</th><th>现价</th><th>市值</th><th>浮动盈亏</th><th>距止损</th><th>距目标</th><th></th></tr>
+    <tr><th>Ticker</th><th>Shares</th><th>Cost</th><th>Price</th><th>Market cap</th><th>Unrealized P&L</th><th>To stop</th><th>To target</th><th></th></tr>
     {% for p in positions %}
     <tr><td><a href="/t/{{ p.ticker }}">{{ p.ticker }}</a></td><td>{{ p.qty|int }}</td>
       <td>{{ '%.2f' % p.avg }}</td><td>{{ '%.2f' % p.px }}</td><td>{{ '{:,.0f}'.format(p.value) }}</td>
       <td><span class="{{ 'up' if p.upnl >= 0 else 'down' }}">{{ '{:+,.0f}'.format(p.upnl) }}</span> {{ pct(p.uret, true) }}</td>
-      <td>{% if p.stop %}{{ pct(p.stop / p.px - 1) }}{% if p.px <= p.stop %} <b class="down">已破</b>{% endif %}{% else %}<span class="muted">未设</span>{% endif %}</td>
-      <td>{% if p.target %}{{ pct(p.target / p.px - 1) }}{% if p.px >= p.target %} <b class="up">已到</b>{% endif %}
-        <div class="muted" style="font-size:11px">{{ '%.2f' % p.target }} · {% if p.target_src != '手动' %}<a href="/v/{{ p.ticker }}">{{ p.target_src }}</a>{% else %}手动{% endif %}</div>{% else %}<span class="muted">未设</span>{% endif %}</td>
-      <td class="acts"><a class="chipbtn" href="/trade/{{ a.id }}?t={{ p.ticker }}&side=sell#ticket">卖出</a>
-        {% if p.qty >= 100 %}<a class="chipbtn" href="/trade/{{ a.id }}/opt?u={{ p.ticker }}&side=sell">卖备兑 call</a>{% endif %}</td></tr>
-    <tr class="enote"><td colspan="9" class="muted">{{ p.opened }} 买入理由：{{ p.reason }}{% if p.locked %}　·　<b>{{ p.locked|int }} 股被卖出的 call 锁定</b>{% endif %}
+      <td>{% if p.stop %}{{ pct(p.stop / p.px - 1) }}{% if p.px <= p.stop %} <b class="down">Hit</b>{% endif %}{% else %}<span class="muted">Not set</span>{% endif %}</td>
+      <td>{% if p.target %}{{ pct(p.target / p.px - 1) }}{% if p.px >= p.target %} <b class="up">Reached</b>{% endif %}
+        <div class="muted" style="font-size:11px">{{ '%.2f' % p.target }} · {% if p.target_src != 'Manual' %}<a href="/v/{{ p.ticker }}">{{ p.target_src }}</a>{% else %} Manual {% endif %}</div>{% else %}<span class="muted">Not set</span>{% endif %}</td>
+      <td class="acts"><a class="chipbtn" href="/trade/{{ a.id }}?t={{ p.ticker }}&side=sell#ticket">Sell</a>
+        {% if p.qty >= 100 %}<a class="chipbtn" href="/trade/{{ a.id }}/opt?u={{ p.ticker }}&side=sell">Sell covered call</a>{% endif %}</td></tr>
+    <tr class="enote"><td colspan="9" class="muted">{{ p.opened }} Entry reason: {{ p.reason }}{% if p.locked %} · <b>{{ p.locked|int }} shares locked by sold calls</b>{% endif %}
       {% if a.active %}<form method="post" action="/trade/{{ a.id }}/plan" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-left:6px;align-items:center">
         <input type="hidden" name="ticker" value="{{ p.ticker }}">
-        止损 <input name="stop" type="number" step="0.01" min="0" value="{{ p.stop or '' }}" placeholder="跌到哪说明错了" style="width:8em">
-        目标 <input name="target" type="number" step="0.01" min="0" value="{{ p.manual_target or '' }}" placeholder="{{ '留空=DCF %.0f' % p.target if p.target and not p.manual_target else '' }}" style="width:8em">
-        <button class="chipbtn">{{ '修改' if p.stop or p.manual_target else '设置' }}</button></form>{% endif %}</td></tr>
+        Stop <input name="stop" type="number" step="0.01" min="0" value="{{ p.stop or '' }}" placeholder="Where would it prove me wrong" style="width:8em">
+        Target <input name="target" type="number" step="0.01" min="0" value="{{ p.manual_target or '' }}" placeholder="{{ 'Blank=DCF %.0f' % p.target if p.target and not p.manual_target else '' }}" style="width:8em">
+        <button class="chipbtn">{{ 'Update' if p.stop or p.manual_target else 'Set' }}</button></form>{% endif %}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">计划止损只是提醒，不会自动卖出；要自动执行就挂一个“止损”卖单。</div>
-  {% else %}<div class="muted">空仓。</div>{% endif %}
+  <div class="muted" style="margin-top:6px">A planned stop is only a reminder and does not sell automatically; to execute automatically, place a “Stop” sell order.</div>
+  {% else %}<div class="muted">No position.</div>{% endif %}
   {% if a.active %}
-  <details style="margin-top:10px"><summary class="muted">转入已有持仓（比如你真实持有的股票，用来练卖备兑 call）</summary>
+  <details style="margin-top:10px"><summary class="muted">Transfer in existing holdings (e.g. stocks you really own, to practice selling covered calls)</summary>
     <form class="simform" method="post" action="/trade/{{ a.id }}/transfer" style="margin-top:8px">
-      <label>代码<input name="ticker" required style="text-transform:uppercase;width:6em"></label>
-      <label>股数<input name="qty" type="number" min="1" step="1" required style="width:7em"></label>
-      <label>成本价（可选）<input name="cost" type="number" step="0.01" min="0" placeholder="默认现价" style="width:8em"></label>
-      <button>转入</button>
+      <label>Ticker<input name="ticker" required style="text-transform:uppercase;width:6em"></label>
+      <label>Shares<input name="qty" type="number" min="1" step="1" required style="width:7em"></label>
+      <label>Cost basis (optional)<input name="cost" type="number" step="0.01" min="0" placeholder="Defaults to current price" style="width:8em"></label>
+      <button>Transfer in</button>
     </form>
-    <div class="muted" style="margin-top:6px;font-size:13px">不花模拟现金：账户本金按现价增加同样的市值，所以账户收益从 0 开始算；同期 SPY 也按今天的价格加上同样金额。填了成本价，持仓的浮动盈亏会按你的真实成本显示。</div>
+    <div class="muted" style="margin-top:6px;font-size:13px">Uses no paper cash: account capital rises by the same market value at the current price, so account returns start from 0; the SPY benchmark is also topped up by the same amount at today’s price. If you enter a cost basis, the holding’s unrealized P&L is shown against your real cost.</div>
   </details>
   {% endif %}
 </section>
 
 
 <section id="opt">
-  <h2>期权持仓 <a class="chipbtn" href="/trade/{{ a.id }}/opt" style="font-size:13px;font-weight:normal">期权链 / 下单</a></h2>
+  <h2>Option positions <a class="chipbtn" href="/trade/{{ a.id }}/opt" style="font-size:13px;font-weight:normal">Option chain / Order</a></h2>
   {% if opos %}
   <div class="scroll"><table>
-    <tr><th>合约</th><th>张数</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>正股</th><th>Delta</th><th>剩余</th><th></th></tr>
+    <tr><th>Contract</th><th>Contracts</th><th>Cost</th><th>Price</th><th>Market cap</th><th>P&L</th><th>Underlying</th><th>Delta</th><th>Remaining</th><th></th></tr>
     {% for p in opos %}
     <tr><td class="l">{{ p.label }}</td><td class="{{ 'up' if p.qty > 0 else 'down' }}">{{ '%+d' % p.qty }}</td>
       <td>{{ '%.2f' % p.avg }}</td><td>{{ '%.2f' % p.mark }}</td><td>{{ '{:+,.0f}'.format(p.value) }}</td>
       <td><span class="{{ 'up' if p.pnl >= 0 else 'down' }}">{{ '{:+,.0f}'.format(p.pnl) }}</span></td>
-      <td>{{ '%.2f' % p.spot if p.spot else '—' }} <span class="chip">{{ '价内' if p.itm else '价外' }}</span></td>
+      <td>{{ '%.2f' % p.spot if p.spot else '—' }} <span class="chip">{{ 'ITM' if p.itm else 'OTM' }}</span></td>
       <td>{{ '%.2f' % (p.delta * p.qty * 100) if p.delta is not none else '—' }}</td>
-      <td>{{ p.dte }} 天</td>
-      <td class="acts"><a class="chipbtn" href="/trade/{{ a.id }}/opt?u={{ p.underlying }}&c={{ p.contract }}&side={{ 'sell' if p.qty > 0 else 'buy' }}">平仓</a></td></tr>
-    <tr class="enote"><td colspan="10" class="muted">{{ p.opened }} 开仓理由：{{ p.reason }}</td></tr>
+      <td>{{ p.dte }} days</td>
+      <td class="acts"><a class="chipbtn" href="/trade/{{ a.id }}/opt?u={{ p.underlying }}&c={{ p.contract }}&side={{ 'sell' if p.qty > 0 else 'buy' }}">Close</a></td></tr>
+    <tr class="enote"><td colspan="10" class="muted">{{ p.opened }} Opening reason: {{ p.reason }}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">Delta 一列是整笔仓位相当于多少股正股（正 = 看涨方向，负 = 看跌方向）。到期日收盘后自动结算：价外作废；价内按内在价值了结，能接股票就交割成股票。</div>
-  {% else %}<div class="muted">没有期权仓位。可以买 call / put，持有 100 股以上可以卖备兑 call，有现金可以卖现金担保 put。</div>{% endif %}
+  <div class="muted" style="margin-top:6px">The Delta column shows how many shares of the underlying the whole position is equivalent to (positive = bullish, negative = bearish). Settled automatically after the close on expiration: OTM expires worthless; ITM is settled at intrinsic value, delivered as shares when possible.</div>
+  {% else %}<div class="muted">No option positions. You can buy calls / puts, sell covered calls if you hold 100+ shares, and sell cash-secured puts if you have cash.</div>{% endif %}
   {% if open_opt %}
-  <h3 style="margin-top:14px">期权挂单</h3>
+  <h3 style="margin-top:14px">Open option orders</h3>
   <table>
-    <tr><th>下单</th><th>合约</th><th>方向</th><th>张数</th><th>限价</th><th></th></tr>
+    <tr><th>Order</th><th>Contract</th><th>Side</th><th>Contracts</th><th>Limit</th><th></th></tr>
     {% for o in open_opt %}
     <tr><td>{{ o.created[:10] }}</td><td class="l">{{ o.underlying }} {{ o.expiry }} {{ '%g' % o.strike }} {{ 'Call' if o.right == 'C' else 'Put' }}</td>
-      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ '买' if o.side == 'buy' else '卖' }}</td><td>{{ o.qty }}</td><td>{{ '%.2f' % o.px }}</td>
-      <td class="acts"><form method="post" action="/trade/{{ a.id }}/opt/cancel/{{ o.id }}"><button>撤单</button></form></td></tr>
+      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ 'Buy' if o.side == 'buy' else 'Sell' }}</td><td>{{ o.qty }}</td><td>{{ '%.2f' % o.px }}</td>
+      <td class="acts"><form method="post" action="/trade/{{ a.id }}/opt/cancel/{{ o.id }}"><button>Cancel</button></form></td></tr>
     {% endfor %}
   </table>
-  <div class="muted" style="margin-top:6px">交易时段内打开页面时按实时买卖价撮合；收盘后再按合约当天的日线撮合一次。</div>
+  <div class="muted" style="margin-top:6px">During trading hours, orders are matched at the live bid/ask when the page is opened; after the close they are matched again against the contract’s daily bar.</div>
   {% endif %}
 </section>
 
 {% if open_orders %}
 <section>
-  <h2>挂单</h2>
+  <h2>Open orders</h2>
   <table>
-    <tr><th>下单</th><th>代码</th><th>方向</th><th>类型</th><th>数量</th><th>价格</th><th></th></tr>
+    <tr><th>Order</th><th>Ticker</th><th>Side</th><th>Type</th><th>Quantity</th><th>Price</th><th></th></tr>
     {% for o in open_orders %}
-    <tr><td>{{ o.created[:10] }}</td><td>{{ o.ticker }}</td><td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ '买' if o.side == 'buy' else '卖' }}</td>
-      <td>{{ {'limit': '限价', 'stop': '止损'}[o.kind] }}</td><td>{{ o.qty|int }}</td><td>{{ '%.2f' % o.px }}</td>
-      <td class="acts"><form method="post" action="/trade/{{ a.id }}/cancel/{{ o.id }}"><button>撤单</button></form></td></tr>
+    <tr><td>{{ o.created[:10] }}</td><td>{{ o.ticker }}</td><td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ 'Buy' if o.side == 'buy' else 'Sell' }}</td>
+      <td>{{ {'limit': 'Limit', 'stop': 'Stop'}[o.kind] }}</td><td>{{ o.qty|int }}</td><td>{{ '%.2f' % o.px }}</td>
+      <td class="acts"><form method="post" action="/trade/{{ a.id }}/cancel/{{ o.id }}"><button>Cancel</button></form></td></tr>
     {% endfor %}
   </table>
-  <div class="muted" style="margin-top:6px">挂单每天收盘后按当天的开盘/最高/最低价撮合；跳空越过你的价格时按开盘价成交（真实市场也是这样）。</div>
+  <div class="muted" style="margin-top:6px">Open orders are matched after each close against that day’s open/high/low; if the price gaps past your price, it fills at the open (as in real markets).</div>
 </section>
 {% endif %}
 
 <section id="journal">
-  <h2>交易日志与复盘</h2>
+  <h2>Trade journal & review</h2>
   {% if st %}
   <div class="stats">
-    <div>已完成交易<b>{{ st.n }}</b></div>
-    <div>胜率<b>{{ pct(st.win) }}</b></div>
-    <div>平均盈利<b>{{ '{:+,.0f}'.format(st.avg_win) if st.avg_win else '—' }}</b></div>
-    <div>平均亏损<b>{{ '{:+,.0f}'.format(st.avg_loss) if st.avg_loss else '—' }}</b></div>
-    <div>盈亏比<b>{{ '%.2f' % st.pf if st.pf else '—' }}</b></div>
-    <div>每笔期望<b>{{ '{:+,.0f}'.format(st.expectancy) }}</b></div>
-    <div>事先定止损<b>{{ pct(st.planned) }}</b></div>
+    <div>Closed trades<b>{{ st.n }}</b></div>
+    <div>Win rate<b>{{ pct(st.win) }}</b></div>
+    <div>Avg win<b>{{ '{:+,.0f}'.format(st.avg_win) if st.avg_win else '—' }}</b></div>
+    <div>Avg loss<b>{{ '{:+,.0f}'.format(st.avg_loss) if st.avg_loss else '—' }}</b></div>
+    <div>Profit factor<b>{{ '%.2f' % st.pf if st.pf else '—' }}</b></div>
+    <div>Expectancy per trade<b>{{ '{:+,.0f}'.format(st.expectancy) }}</b></div>
+    <div>Stop set in advance<b>{{ pct(st.planned) }}</b></div>
   </div>
-  <div class="muted" style="margin-top:6px">盈亏比 = 总盈利 / 总亏损。胜率低也能赚钱，只要赚的时候赚得多；反过来胜率高也可能亏钱。</div>
+  <div class="muted" style="margin-top:6px">Profit factor = total profit / total loss. You can make money with a low win rate as long as the wins are big; conversely, a high win rate can still lose money.</div>
   {% for t in trips %}
   <div class="trip">
     <div class="hd"><b>{{ t.ticker }}</b><span class="muted">{{ t.opened[:10] }} → {{ t.closed[:10] }}</span>
-      <span class="{{ 'up' if t.pnl > 0 else 'down' }}">{{ '{:+,.0f}'.format(t.pnl) }}（{{ '%+.1f%%' % (t.ret * 100) }}）</span>
-      {% if t.plan_stop %}<span class="chip">计划止损 {{ '%.2f' % t.plan_stop }}</span>{% endif %}
-      {% if t.plan_target %}<span class="chip">目标 {{ '%.2f' % t.plan_target }}</span>{% endif %}</div>
-    <div class="rule">理由：{{ t.reason }}</div>
-    <div class="rule">{% for o in t.orders %}{{ '买' if o.side == 'buy' else '卖' }} {{ o.qty|int }} @ {{ '%.2f' % o.fill_px }}{{ '；' if not loop.last }}{% endfor %}</div>
+      <span class="{{ 'up' if t.pnl > 0 else 'down' }}">{{ '{:+,.0f}'.format(t.pnl) }} ({{ '%+.1f%%' % (t.ret * 100) }})</span>
+      {% if t.plan_stop %}<span class="chip">Planned stop {{ '%.2f' % t.plan_stop }}</span>{% endif %}
+      {% if t.plan_target %}<span class="chip">Target {{ '%.2f' % t.plan_target }}</span>{% endif %}</div>
+    <div class="rule">Reason: {{ t.reason }}</div>
+    <div class="rule">{% for o in t.orders %}{{ 'Buy' if o.side == 'buy' else 'Sell' }} {{ o.qty|int }} @ {{ '%.2f' % o.fill_px }}{{ '; ' if not loop.last }}{% endfor %}</div>
     <form method="post" action="/trade/{{ a.id }}/review/{{ t.last_id }}">
-      <textarea name="review" placeholder="复盘：按计划执行了吗？理由对了还是运气？下次会怎么做？">{{ t.review or '' }}</textarea>
-      <button class="chipbtn">保存复盘</button></form>
+      <textarea name="review" placeholder="Review: did you follow the plan? Was the reason right, or was it luck? What will you do next time?">{{ t.review or '' }}</textarea>
+      <button class="chipbtn">Save review</button></form>
   </div>
   {% endfor %}
-  {% else %}<div class="muted">还没有完整的一买一卖。平仓后会出现在这里，可以写复盘。</div>{% endif %}
+  {% else %}<div class="muted">No complete buy-and-sell round trip yet. Closed trades appear here, where you can write a review.</div>{% endif %}
 </section>
 
 
 {% if otrips %}
 <section id="ojournal">
-  <h2>期权日志与复盘</h2>
+  <h2>Options journal & review</h2>
   <div class="stats">
-    <div>已完成<b>{{ ost.n }}</b></div>
-    <div>胜率<b>{{ pct(ost.win) }}</b></div>
-    <div>平均盈利<b>{{ '{:+,.0f}'.format(ost.avg_win) if ost.avg_win else '—' }}</b></div>
-    <div>平均亏损<b>{{ '{:+,.0f}'.format(ost.avg_loss) if ost.avg_loss else '—' }}</b></div>
-    <div>盈亏比<b>{{ '%.2f' % ost.pf if ost.pf else '—' }}</b></div>
-    <div>每笔期望<b>{{ '{:+,.0f}'.format(ost.expectancy) }}</b></div>
+    <div>Completed<b>{{ ost.n }}</b></div>
+    <div>Win rate<b>{{ pct(ost.win) }}</b></div>
+    <div>Avg win<b>{{ '{:+,.0f}'.format(ost.avg_win) if ost.avg_win else '—' }}</b></div>
+    <div>Avg loss<b>{{ '{:+,.0f}'.format(ost.avg_loss) if ost.avg_loss else '—' }}</b></div>
+    <div>Profit factor<b>{{ '%.2f' % ost.pf if ost.pf else '—' }}</b></div>
+    <div>Expectancy per trade<b>{{ '{:+,.0f}'.format(ost.expectancy) }}</b></div>
   </div>
   {% for t in otrips %}
   <div class="trip">
-    <div class="hd"><b>{{ t.label }}</b><span class="chip">{{ '卖出开仓' if t.short else '买入开仓' }}</span>
+    <div class="hd"><b>{{ t.label }}</b><span class="chip">{{ 'Sell to open' if t.short else 'Buy to open' }}</span>
       <span class="muted">{{ t.opened[:10] }} → {{ t.closed[:10] }}</span>
       <span class="{{ 'up' if t.pnl > 0 else 'down' }}">{{ '{:+,.0f}'.format(t.pnl) }}</span>
-      {% if t.how != 'trade' %}<span class="chip">{{ {'expire': '到期作废', 'exercise': '行权', 'assign': '被指派', 'cash': '现金结算'}[t.how] }}</span>{% endif %}</div>
-    <div class="rule">理由：{{ t.reason }}</div>
-    <div class="rule">{% for o in t.orders %}{{ '买' if o.side == 'buy' else '卖' }} {{ o.qty }} 张 @ {{ '%.2f' % o.fill_px }}{% if o.how != 'trade' %}（{{ o.msg }}）{% endif %}{{ '；' if not loop.last }}{% endfor %}</div>
+      {% if t.how != 'trade' %}<span class="chip">{{ {'expire': 'Expired', 'exercise': 'Exercised', 'assign': 'Assigned', 'cash': 'Cash settled'}[t.how] }}</span>{% endif %}</div>
+    <div class="rule">Reason: {{ t.reason }}</div>
+    <div class="rule">{% for o in t.orders %}{{ 'Buy' if o.side == 'buy' else 'Sell' }} {{ o.qty }} contracts @ {{ '%.2f' % o.fill_px }}{% if o.how != 'trade' %} ({{ o.msg }}) {% endif %}{{ '; ' if not loop.last }}{% endfor %}</div>
     <form method="post" action="/trade/{{ a.id }}/opt/review/{{ t.last_id }}">
-      <textarea name="review" placeholder="复盘：方向对了吗？时间（theta）和波动率（IV）对结果的影响有多大？">{{ t.review or '' }}</textarea>
-      <button class="chipbtn">保存复盘</button></form>
+      <textarea name="review" placeholder="Review: was the direction right? How much did time (theta) and volatility (IV) affect the result?">{{ t.review or '' }}</textarea>
+      <button class="chipbtn">Save review</button></form>
   </div>
   {% endfor %}
 </section>
 {% endif %}
 {% if recent %}
 <section>
-  <h2>最近成交 / 被拒</h2>
+  <h2>Recent fills / rejections</h2>
   <div class="scroll"><table>
-    <tr><th>时间</th><th>代码</th><th>方向</th><th>数量</th><th>成交价</th><th>手续费</th><th>备注</th></tr>
+    <tr><th>Time</th><th>Ticker</th><th>Side</th><th>Quantity</th><th>Fill price</th><th>Fees</th><th>Note</th></tr>
     {% for o in recent %}
     <tr style="{{ 'opacity:.6' if o.status == 'rejected' }}"><td>{{ (o.filled_at or o.created)[:16]|replace('T', ' ') }}</td><td>{{ o.ticker }}</td>
-      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ '买' if o.side == 'buy' else '卖' }}</td><td>{{ o.qty|int }}</td>
+      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ 'Buy' if o.side == 'buy' else 'Sell' }}</td><td>{{ o.qty|int }}</td>
       <td>{{ '%.2f' % o.fill_px if o.fill_px else '—' }}</td><td>{{ '%.2f' % o.fee if o.fee is not none else '—' }}</td>
-      <td class="l muted">{{ '被拒：' if o.status == 'rejected' }}{{ o.msg or '' }}
-        {% if o.reason == '转入已有持仓' and a.active %}<form method="post" action="/trade/{{ a.id }}/transfer/{{ o.id }}" style="display:inline-flex;gap:4px;margin-left:6px">
-          <input name="qty" type="number" min="0" step="1" value="{{ o.qty|int }}" style="width:7em" aria-label="改股数"><button class="chipbtn">改股数</button></form>
-          <span style="font-size:12px">（填 0 = 删除这笔转入）</span>{% endif %}</td></tr>
+      <td class="l muted">{{ 'Rejected: ' if o.status == 'rejected' }}{{ o.msg or '' }}
+        {% if o.reason == 'Transferred existing position' and a.active %}<form method="post" action="/trade/{{ a.id }}/transfer/{{ o.id }}" style="display:inline-flex;gap:4px;margin-left:6px">
+          <input name="qty" type="number" min="0" step="1" value="{{ o.qty|int }}" style="width:7em" aria-label="Edit shares"><button class="chipbtn">Edit shares</button></form>
+          <span style="font-size:12px">(enter 0 = delete this transfer)</span>{% endif %}</td></tr>
     {% endfor %}
   </table></div>
 </section>
 {% endif %}
 {% if recent_opt %}
 <section>
-  <h2>期权成交 / 被拒</h2>
+  <h2>Option fills / rejections</h2>
   <div class="scroll"><table>
-    <tr><th>时间</th><th>合约</th><th>方向</th><th>张数</th><th>成交价</th><th>手续费</th><th>备注</th></tr>
+    <tr><th>Time</th><th>Contract</th><th>Side</th><th>Contracts</th><th>Fill price</th><th>Fees</th><th>Note</th></tr>
     {% for o in recent_opt %}
     <tr style="{{ 'opacity:.6' if o.status == 'rejected' }}"><td>{{ (o.filled_at or o.created)[:16]|replace('T', ' ') }}</td>
       <td class="l">{{ o.underlying }} {{ o.expiry }} {{ '%g' % o.strike }} {{ 'Call' if o.right == 'C' else 'Put' }}</td>
-      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ '买' if o.side == 'buy' else '卖' }}</td><td>{{ o.qty }}</td>
+      <td class="{{ 'up' if o.side == 'buy' else 'down' }}">{{ 'Buy' if o.side == 'buy' else 'Sell' }}</td><td>{{ o.qty }}</td>
       <td>{{ '%.2f' % o.fill_px if o.fill_px is not none else '—' }}</td><td>{{ '%.2f' % o.fee if o.fee is not none else '—' }}</td>
-      <td class="l muted">{{ '被拒：' if o.status == 'rejected' }}{{ o.msg or '' }}</td></tr>
+      <td class="l muted">{{ 'Rejected: ' if o.status == 'rejected' }}{{ o.msg or '' }}</td></tr>
     {% endfor %}
   </table></div>
 </section>
 {% endif %}
 
 <section class="muted" style="font-size:13px">
-  学习建议：① 每笔交易下单前写好理由和止损——“什么情况说明我错了”；② 单笔最多亏总资金的 1–2%；③ 每次平仓后写复盘，过一个月回头看哪类交易在赚钱、哪类在亏；④ 一直和 SPY 比——跑不赢指数，就说明还不如直接买指数。
-  {% if a.active %}<form method="post" action="/trade/{{ a.id }}/close" style="margin-top:8px" onsubmit="if(this.dataset.armed)return true;this.dataset.armed=1;this.querySelector('button').textContent='确认关闭账户？';return false"><button class="chipbtn">关闭这个账户</button></form>{% endif %}
-  <a href="/trade?all=1">所有账户 / 新开账户</a>
+  Learning tips: ① Before each order, write down the reason and the stop——“what would prove me wrong”; ② Risk at most 1-2% of total capital per trade; ③ After each close, write a review; after a month, look back at which kinds of trades make money and which lose; ④ Always compare with SPY: if you can’t beat the index, you’re better off just buying the index.
+  {% if a.active %}<form method="post" action="/trade/{{ a.id }}/close" style="margin-top:8px" onsubmit="if(this.dataset.armed)return true;this.dataset.armed=1;this.querySelector('button').textContent='Confirm closing the account?';return false"><button class="chipbtn">Close this account</button></form>{% endif %}
+  <a href="/trade?all=1">All accounts / New account</a>
 </section>
 
 <script>
@@ -257,7 +257,7 @@
     const k = $("kind").value;
     if (k === "stop") f.querySelector("input[value=sell]").checked = true;
     $("pxl").style.display = k === "market" ? "none" : "";
-    $("pxlab").textContent = k === "limit" ? "限价" : "止损触发价";
+    $("pxlab").textContent = k === "limit" ? "Limit" : "Stop trigger price";
     f.querySelectorAll(".buyonly").forEach(e => e.style.display = side() === "buy" ? "" : "none");
     paint();
   }
@@ -265,22 +265,22 @@
     if (!px) return;
     const k = $("kind").value, p = k === "market" ? px : (+$("px").value || px), q = +$("qty").value || 0;
     const stop = +$("stop").value || 0, tgt = +$("target").value || 0, held = QTY[HELD.indexOf(tkr)] || 0;
-    let h = `<b>${tkr}</b> 现价 ${px.toFixed(2)}`;
+    let h = `<b>${tkr}</b> Price ${px.toFixed(2)}`;
     if (side() === "buy") {
       const cost = p * q;
-      h += q ? `　· 金额 ${fmt(cost)}（总资产的 ${(cost / EQ * 100).toFixed(1)}%）` : "";
-      if (cost > CASH) h += `　<b class="down">现金不够（可用 ${fmt(CASH)}）</b>`;
+      h += q ? ` · Amount ${fmt(cost)} (share of total equity: ${(cost / EQ * 100).toFixed(1)}%)` : "";
+      if (cost > CASH) h += ` <b class="down">Not enough cash (available ${fmt(CASH)})</b>`;
       if (stop && stop < p) {
         const per = p - stop, maxq = Math.floor(EQ * 0.01 / per);
-        h += `<br>止损在 ${stop.toFixed(2)}（${((stop / p - 1) * 100).toFixed(1)}%）`;
+        h += `<br>Stop at ${stop.toFixed(2)} (${((stop / p - 1) * 100).toFixed(1)}%)`;
         if (q) { const r = per * q / EQ * 100;
-          h += `：打到止损会亏 <b class="${r > 2 ? "down" : ""}">${fmt(per * q)}，占总资产 ${r.toFixed(2)}%</b>${r > 2 ? "（超过 2%，仓位偏大）" : ""}`; }
-        h += `<br>按“单笔最多亏 1%”算，最多买 <b>${maxq}</b> 股 <button type="button" class="chipbtn" id="useq">用这个数</button>`;
-        if (tgt > p) h += `<br>收益风险比 ${((tgt - p) / per).toFixed(1)} : 1${(tgt - p) / per < 2 ? "（低于 2:1，想清楚值不值）" : ""}`;
-      } else if (stop) h += `<br><span class="down">止损价要低于买入价</span>`;
-      else h += `<br><span class="muted">建议先想好止损价：跌到哪里说明你错了？</span>`;
+          h += `: hitting the stop loses <b class="${r > 2 ? "down" : ""}">${fmt(per * q)}, share of total equity: ${r.toFixed(2)}%</b>${r > 2 ? " (over 2%, position too large)" : ""}`; }
+        h += `<br>Using “max loss 1%” per trade, buy at most <b>${maxq}</b> shares <button type="button" class="chipbtn" id="useq">Use this number</button>`;
+        if (tgt > p) h += `<br>Reward/risk ${((tgt - p) / per).toFixed(1)} : 1${(tgt - p) / per < 2 ? " (below 2:1, think it over)" : ""}`;
+      } else if (stop) h += `<br><span class="down">Stop must be below the entry price</span>`;
+      else h += `<br><span class="muted">Set a stop price first: where would it prove you wrong?</span>`;
     } else {
-      h += held ? `　· 持有 ${held} 股 <button type="button" class="chipbtn" id="allq">全部卖出</button>` : `　· <span class="down">没有持仓</span>`;
+      h += held ? ` · Holding ${held} shares <button type="button" class="chipbtn" id="allq">Sell all</button>` : ` · <span class="down">No position</span>`;
     }
     risk.innerHTML = h;
     const u = $("useq"); if (u) u.onclick = () => { $("qty").value = Math.max(1, Math.floor(EQ * 0.01 / (p - stop))); paint(); };
@@ -288,15 +288,15 @@
   }
   async function look() {
     const t = $("tk").value.trim().toUpperCase(); if (!t || t === tkr) return;
-    tkr = t; px = null; risk.innerHTML = '<span class="muted">查询报价…</span>';
+    tkr = t; px = null; risk.innerHTML = '<span class="muted">Fetching quote…</span>';
     try { const r = await fetch("/trade/quote?t=" + encodeURIComponent(t)), j = await r.json();
       if (!r.ok) { risk.innerHTML = `<span class="down">${j.error}</span>`; return; }
       if (t === tkr) { px = j.price; paint(); }
-    } catch (e) { risk.innerHTML = '<span class="down">报价失败</span>'; }
+    } catch (e) { risk.innerHTML = '<span class="down">Quote failed</span>'; }
   }
   $("tk").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(look, 500); });
   f.addEventListener("input", paint); f.addEventListener("change", sync);
-  f.addEventListener("submit", () => { $("go").disabled = true; $("go").textContent = "提交中…"; });
+  f.addEventListener("submit", () => { $("go").disabled = true; $("go").textContent = "Submitting…"; });
   sync(); look();
 })();
 </script>

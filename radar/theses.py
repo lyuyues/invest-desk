@@ -8,16 +8,16 @@ from radar.db import _ts
 
 GENERAL = "_GENERAL"
 
-_T = "买入逻辑：{why}\n关键指标：{watch}\n逻辑破坏（考虑减仓）：{breaks}"
+_T = "Buy thesis: {why}\nKey metrics: {watch}\nThesis breakers (consider trimming): {breaks}"
 
 DEFAULTS: dict[str, str] = {
-    GENERAL: "长期持有优质公司。\n"
-             "- 单一个股不超过总仓位 15%；科技/半导体合计设上限。\n"
-             "- 财报后先看指引和逻辑是否变化，不因单日涨跌操作。\n"
-             "- 加仓前写下理由和退出条件。",
+    GENERAL: "Hold quality companies for the long term.\n"
+             "- No single stock above 15% of the total portfolio; cap tech/semiconductors combined.\n"
+             "- After earnings, first check whether guidance and the thesis changed; don’t trade on a single day’s move.\n"
+             "- Before adding, write down the reason and the exit conditions.",
 }
 
-TEMPLATE = _T.format(why="（为什么买 / 关注）", watch="（看哪些数据）", breaks="（什么情况下逻辑不成立）")
+TEMPLATE = _T.format(why="(why buy / watch)", watch="(which data to watch)", breaks="(when the thesis no longer holds)")
 
 
 def seed(conn: sqlite3.Connection, tickers: list[str], now: datetime) -> None:
@@ -43,6 +43,6 @@ def for_prompt(conn: sqlite3.Connection, tickers: list[str]) -> list[str]:
         r = th.get(t)
         if r is None or r["body"] == TEMPLATE:
             continue
-        name = "总体原则" if t == GENERAL else t
-        out.append(f"### {name}{'（默认值，用户尚未修改）' if r['is_default'] else ''}\n{r['body']}")
+        name = "General principles" if t == GENERAL else t
+        out.append(f"### {name}{' (default, not yet edited by the user)' if r['is_default'] else ''}\n{r['body']}")
     return out

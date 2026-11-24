@@ -78,7 +78,7 @@ def parse_kalshi_events(data: dict) -> list[Market]:
     for e in data.get("events", []):
         title = e.get("title") or e["event_ticker"]
         if e.get("sub_title"):
-            title = f"{title}（{e['sub_title']}）"
+            title = f"{title} ({e['sub_title']})"
         for m in e.get("markets", []):
             prob = _f(m.get("last_price_dollars"))
             bid, ask = _f(m.get("yes_bid_dollars")), _f(m.get("yes_ask_dollars"))

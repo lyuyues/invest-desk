@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from radar.db import _ts
 
-KINDS = ("学习", "财报", "新闻", "其他")
+KINDS = ("Learning", "Earnings", "News", "Other")
 TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9.\-^=]{0,14}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MAX_BODY, MAX_TITLE, MAX_URL = 20000, 200, 1000
@@ -22,22 +22,22 @@ def clean(kind: str, body: str, ticker: str | None = None, title: str | None = N
     """Validate form input → column values. Raises ValueError with a Chinese message."""
     kind = (kind or "").strip()
     if kind not in KINDS:
-        raise ValueError("类型不对")
+        raise ValueError("Invalid type")
     body = (body or "").strip()
     if not body:
-        raise ValueError("内容不能为空")
+        raise ValueError("Content cannot be empty")
     if len(body) > MAX_BODY:
-        raise ValueError(f"内容太长（上限 {MAX_BODY} 字）")
+        raise ValueError(f"Content too long (max {MAX_BODY} characters)")
     ticker = (ticker or "").strip().upper() or None
     if ticker and not TICKER_RE.match(ticker):
-        raise ValueError("标的代码格式不对（如 MSFT、BRK-B）")
+        raise ValueError("Invalid ticker format (e.g. MSFT, BRK-B)")
     title = (title or "").strip()[:MAX_TITLE] or None
     source_url = (source_url or "").strip() or None
     if source_url and (not re.match(r"^https?://\S+$", source_url) or len(source_url) > MAX_URL):
-        raise ValueError("链接要以 http:// 或 https:// 开头")
+        raise ValueError("Links must start with http:// or https://")
     earnings_date = (earnings_date or "").strip() or None
     if earnings_date and (not DATE_RE.match(earnings_date) or not ticker):
-        raise ValueError("财报引用需要标的和日期（YYYY-MM-DD）")
+        raise ValueError("An earnings reference needs a ticker and a date (YYYY-MM-DD)")
     return {"kind": kind, "body": body, "ticker": ticker, "title": title, "source_url": source_url,
             "earnings_date": earnings_date}
 
@@ -98,7 +98,7 @@ def counts_by_ticker(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def recent_by_ticker(conn: sqlite3.Connection, tickers: list[str], per: int = 3) -> dict[str, list[sqlite3.Row]]:
-    """Newest few notes per ticker (for the compact lists on 逻辑 / 财报)."""
+    """Newest few notes per ticker (for the compact lists on Theses / Earnings)."""
     out: dict[str, list[sqlite3.Row]] = {}
     for t in tickers:
         rows = list_notes(conn, ticker=t, limit=per)
@@ -128,12 +128,12 @@ def _line(r: sqlite3.Row, chars: int) -> str:
     if r["ticker"]:
         head += f" {r['ticker']}"
     if r["earnings_date"]:
-        head += f"（{r['earnings_date']} 财报）"
+        head += f"({r['earnings_date']} earnings)"
     if r["title"]:
         head += f" {r['title']}"
     body = re.sub(r"\s+", " ", r["body"]).strip()
     body = body if len(body) <= chars else body[:chars] + " …"
-    return f"{head}：{body}" + (f" {r['source_url']}" if r["source_url"] else "")
+    return f"{head}: {body}" + (f" {r['source_url']}" if r["source_url"] else "")
 
 
 def for_prompt(conn: sqlite3.Connection, now: datetime, days: int = 90, per_ticker: int = 5,

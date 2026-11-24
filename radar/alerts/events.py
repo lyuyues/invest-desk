@@ -32,7 +32,7 @@ def filing_fires(rules, filings, tier_of: Callable[[str], str], today: date,
             if date.fromisoformat(f.filed) < today - max_age:
                 continue
             out.append(Fire(f"{r['id']}:{f.accession}", f.ticker, r["level"],
-                            f"{f.ticker} 8-K：{labels(f.items)}", f"{f.filed} · {f.url}", once=True))
+                            f"{f.ticker} 8-K: {labels(f.items)}", f"{f.filed} · {f.url}", once=True))
     return out
 
 
@@ -47,10 +47,10 @@ def insider_buy_fires(rules, txs, tier_of, today: date) -> list[Fire]:
                 continue
             if date.fromisoformat(t.tx_date) < today - max_age:
                 continue
-            who = f"{t.owner}（{t.title}）" if t.title else t.owner
+            who = f"{t.owner} ({t.title})" if t.title else t.owner
             out.append(Fire(f"{r['id']}:{t.accession}:{t.idx}", t.ticker, r["level"],
-                            f"{t.ticker} 内部人买入 ${t.value / 1e6:.2f}M",
-                            f"{who} {t.tx_date} 买入 {t.shares:,.0f} 股 @ {t.price:.2f}", once=True))
+                            f"{t.ticker} insider buy ${t.value / 1e6:.2f}M",
+                            f"{who} {t.tx_date} bought {t.shares:,.0f} shares @ {t.price:.2f}", once=True))
     return out
 
 
@@ -66,8 +66,8 @@ def insider_cluster_fires(rules, purchases_by_ticker: dict[str, list[dict]], tie
             total = sum(b["value"] or 0 for b in buys)
             latest = max(b["accession"] for b in buys)
             out.append(Fire(f"{r['id']}:{latest}", ticker, r["level"],
-                            f"{ticker} 内部人集体买入：{len(owners)} 人",
-                            f"近 {r.get('days', 30)} 天共 ${total / 1e6:.2f}M：" + "、".join(sorted(owners)), once=True))
+                            f"{ticker} insider cluster buy: {len(owners)} insiders",
+                            f"Last {r.get('days', 30)} days, total ${total / 1e6:.2f} M: " + ", ".join(sorted(owners)), once=True))
     return out
 
 
@@ -82,11 +82,11 @@ def earnings_fires(rules, rows, tier_of, today: date) -> list[Fire]:
             if date.fromisoformat(e["date"]) < today - max_age:
                 continue
             s = e["surprise_pct"]
-            verdict = "超预期" if s is not None and s > 0 else ("不及预期" if s is not None and s < 0 else "")
+            verdict = "Beat" if s is not None and s > 0 else ("Miss" if s is not None and s < 0 else "")
             est = f"{e['eps_est']:.2f}" if e["eps_est"] is not None else "—"
             out.append(Fire(f"{r['id']}:{e['date']}", e["ticker"], r["level"],
-                            f"{e['ticker']} 财报{verdict} {s:+.1f}%" if s is not None else f"{e['ticker']} 发布财报",
-                            f"EPS {e['eps_actual']:.2f} vs 预期 {est}（{e['date']}）", once=True))
+                            f"{e['ticker']} Earnings {verdict} {s:+.1f}%" if s is not None else f"{e['ticker']} reported earnings",
+                            f"EPS {e['eps_actual']:.2f} vs est. {est} ({e['date']})", once=True))
     return out
 
 
@@ -102,9 +102,9 @@ def prob_shift_fires(rules, shifts: list[dict]) -> list[Fire]:
             if abs(delta) < r["threshold_pp"]:
                 continue
             out.append(Fire(f"{r['id']}:{s['source']}:{s['market_id']}", "MACRO", r["level"],
-                            f"预期变化 {delta:+.0f}pp：{s['label']}",
-                            f"{s['event_title']} · {s['label']}：{s['prob_before']:.0%} → {s['prob']:.0%}"
-                            f"（{r.get('hours', 24)}h，{s['source']}）"))
+                            f"Expectation change {delta:+.0f}pp: {s['label']}",
+                            f"{s['event_title']} · {s['label']}: {s['prob_before']:.0%} → {s['prob']:.0%}"
+                            f"({r.get('hours', 24)} h, {s['source']})"))
     return out
 
 
@@ -123,10 +123,10 @@ def macro_cross_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> list
         label = r.get("label", r["series"])
         if "above" in r and prev <= r["above"] < cur:
             out.append(Fire(f"{r['id']}:{d}", "MACRO", r["level"],
-                            f"{label} 升破 {_n(r['above'])}", f"{label} {_n(prev)} → {_n(cur)}（{d}）", once=True))
+                            f"{label} rose above {_n(r['above'])}", f"{label} {_n(prev)} → {_n(cur)} ({d})", once=True))
         if "below" in r and prev >= r["below"] > cur:
             out.append(Fire(f"{r['id']}:{d}", "MACRO", r["level"],
-                            f"{label} 跌破 {_n(r['below'])}", f"{label} {_n(prev)} → {_n(cur)}（{d}）", once=True))
+                            f"{label} fell below {_n(r['below'])}", f"{label} {_n(prev)} → {_n(cur)} ({d})", once=True))
     return out
 
 
@@ -155,7 +155,7 @@ def macro_change_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> lis
             delta = (cur / base - 1) * 100
             if abs(delta) < r["pct"]:
                 continue
-            what, key = f"较前 {len(window)} 期均值 {_n(base)} {delta:+.0f}%", d
+            what, key = f"vs prior {len(window)}-period mean {_n(base)} {delta:+.0f}%", d
         else:
             cutoff = (date.fromisoformat(d) - timedelta(days=r.get("days", 7))).isoformat()
             prior = [(pd, v) for pd, v in obs[:-1] if pd <= cutoff]
@@ -166,10 +166,10 @@ def macro_change_fires(rules, latest: dict[str, list[tuple[str, float]]]) -> lis
             if abs(delta) < r["abs"]:
                 continue
             y, w, _ = date.fromisoformat(d).isocalendar()
-            what, key = f"{r.get('days', 7)} 天内 {delta:+.2f}（{pd} {_n(base)} → {_n(cur)}）", f"{y}-W{w:02d}"
+            what, key = f"{r.get('days', 7)} days {delta:+.2f} ({pd} {_n(base)} → {_n(cur)})", f"{y}-W{w:02d}"
         if (direction == "up" and delta < 0) or (direction == "down" and delta > 0):
             continue
         arrow = "▲" if delta > 0 else "▼"
         out.append(Fire(f"{r['id']}:{key}", "MACRO", r["level"], f"{label} {arrow} {_n(cur)}",
-                        f"{label} {_n(cur)}（{d}），{what}", once=True))
+                        f"{label} {_n(cur)} ({d}), {what}", once=True))
     return out

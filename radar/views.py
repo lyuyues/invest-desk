@@ -133,11 +133,11 @@ def _freq(dates: list[str]) -> str:
     if not gaps:
         return ""
     g = gaps[len(gaps) // 2]
-    return "日" if g <= 4 else "周" if g <= 10 else "月" if g <= 45 else "季"
+    return "Daily" if g <= 4 else "Weekly" if g <= 10 else "Monthly" if g <= 45 else "Quarterly"
 
 
 def macro_groups(table: list[dict], groups: dict[str, list[str]]) -> list[tuple[str, list[dict]]]:
-    """Split macro_table rows into the configured groups (config order); leftovers go to「其他」."""
+    """Split macro_table rows into the configured groups (config order); leftovers go to “Other”."""
     by = {m["series"]: m for m in table}
     out, used = [], set()
     for name, ids in (groups or {}).items():
@@ -147,7 +147,7 @@ def macro_groups(table: list[dict], groups: dict[str, list[str]]) -> list[tuple[
             out.append((name, rows))
     rest = [m for m in table if m["series"] not in used]
     if rest:
-        out.append(("其他" if out else "宏观实际值", rest))
+        out.append(("Other" if out else "Macro actuals", rest))
     return out
 
 
@@ -259,11 +259,11 @@ def econ_lines(econ: list[dict]) -> list[str]:
         if e["kind"] == "ladder":
             if e["implied"] is None:
                 continue
-            ch = f"，24h {e['implied'] - e['implied_before']:+.2f}pp" if e["implied_before"] is not None else ""
-            out.append(f"- {e['label']} · {e['event']}（结算 {e['close']}）：隐含 {e['implied']:.2f}%{ch}")
+            ch = f", 24h {e['implied'] - e['implied_before']:+.2f}pp" if e["implied_before"] is not None else ""
+            out.append(f"- {e['label']} · {e['event']} (settles {e['close']}): implied {e['implied']:.2f}%{ch}")
         else:
-            ch = f"，24h {(e['prob'] - e['prob_before']) * 100:+.0f}pp" if e["prob_before"] is not None else ""
-            out.append(f"- {e['label']} · {e['event']}：{e['market']} 概率 {e['prob']:.0%}{ch}")
+            ch = f", 24h {(e['prob'] - e['prob_before']) * 100:+.0f}pp" if e["prob_before"] is not None else ""
+            out.append(f"- {e['label']} · {e['event']}: {e['market']} probability {e['prob']:.0%}{ch}")
     return out
 
 
@@ -271,10 +271,10 @@ def fast_macro_lines(table: list[dict]) -> list[str]:
     """Daily / weekly FRED series (not the monthly / quarterly ones) with their latest change."""
     out = []
     for m in table:
-        if m["value"] is None or m.get("freq") not in ("日", "周"):
+        if m["value"] is None or m.get("freq") not in ("Daily", "Weekly"):
             continue
-        ch = f"{fmt_num(m['prev_change'], True, m['value'])}（vs {m['prev_date']}）" if m.get("prev_change") is not None else "—"
-        out.append(f"- {m['label']}（{m['series']}，{m['freq']}）：{fmt_num(m['value'])}（{m['date']}），较上期 {ch}")
+        ch = f"{fmt_num(m['prev_change'], True, m['value'])} (vs {m['prev_date']})" if m.get("prev_change") is not None else "—"
+        out.append(f"- {m['label']} ({m['series']}, {m['freq']}): {fmt_num(m['value'])} ({m['date']}), vs prior {ch}")
     return out
 
 

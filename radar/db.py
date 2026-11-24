@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS earnings_notes (
     date TEXT NOT NULL,
     markdown TEXT NOT NULL,
     tags TEXT NOT NULL,           -- JSON list
-    level TEXT,                   -- 高 / 中 / 低
+    level TEXT,                   -- High / Medium / Low
     created TEXT NOT NULL,
     PRIMARY KEY (ticker, date)
 );
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL,
     updated TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('学习', '财报', '新闻', '其他')),
+    kind TEXT NOT NULL CHECK (kind IN ('Learning', 'Earnings', 'News', 'Other')),
     ticker TEXT,
     title TEXT,
     body TEXT NOT NULL,           -- markdown

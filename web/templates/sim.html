@@ -1,41 +1,41 @@
 {% extends "base.html" %}
 {% from "_chart.html" import svgchart, pct, chart_css %}
-{% block title %}回测 · Invest Radar{% endblock %}
+{% block title %} Backtest · Invest Radar {% endblock %}
 {% block content %}
 {{ chart_css() }}
 <section>
-  <h2>策略回测</h2>
+  <h2>Strategy backtest</h2>
   <form class="simform" method="get" action="/sim">
-    <label>股票 / ETF<input class="tk" name="ticker" value="{{ ticker }}" maxlength="12"></label>
-    <label>回测年数<input name="years" type="number" min="1" max="30" step="1" value="{{ years|int }}"></label>
-    <label>单边成本 (bp)<input name="cost" type="number" min="0" max="200" step="1" value="{{ cost|int }}"></label>
-    <label>样本内占比 %<input name="split" type="number" min="30" max="95" step="5" value="{{ split|int }}"></label>
-    <button>回测</button>
+    <label>Stock / ETF<input class="tk" name="ticker" value="{{ ticker }}" maxlength="12"></label>
+    <label>Years to backtest<input name="years" type="number" min="1" max="30" step="1" value="{{ years|int }}"></label>
+    <label>Cost per side (bp)<input name="cost" type="number" min="0" max="200" step="1" value="{{ cost|int }}"></label>
+    <label>In-sample share %<input name="split" type="number" min="30" max="95" step="5" value="{{ split|int }}"></label>
+    <button>Backtest</button>
     <div class="picks">
       {% for s in strategies %}
       <label><input type="checkbox" name="s" value="{{ s.id }}" {{ 'checked' if s.id in chosen }}>
-        <span><b>{{ s.spec.name }}</b>{% if s.preset %} <span class="chip def">预设</span>{% endif %}
-          <div class="rule">买：{{ describe(s.spec).entry }}<br>卖：{{ describe(s.spec).exit }}</div></span>
+        <span><b>{{ s.spec.name }}</b>{% if s.preset %} <span class="chip def">Preset</span>{% endif %}
+          <div class="rule">Buy: {{ describe(s.spec).entry }}<br>Sell: {{ describe(s.spec).exit }}</div></span>
         <span class="acts">
-          {% if s.preset %}<a class="chipbtn" href="/sim/edit?src={{ s.id }}">复制修改</a>
-          {% else %}<a class="chipbtn" href="/sim/edit?id={{ s.id }}">编辑</a>{% endif %}
+          {% if s.preset %}<a class="chipbtn" href="/sim/edit?src={{ s.id }}">Copy & edit</a>
+          {% else %}<a class="chipbtn" href="/sim/edit?id={{ s.id }}">Edit</a>{% endif %}
         </span></label>
       {% endfor %}
-      <div><a class="btn ghost" href="/sim/edit">＋ 新建我的策略</a> <span class="muted">最多同时比较 5 个，买入持有总是作为基准</span></div>
+      <div><a class="btn ghost" href="/sim/edit">+ New custom strategy</a> <span class="muted">Compare up to 5 at once; buy & hold is always the benchmark</span></div>
     </div>
   </form>
 </section>
 
 {% if error %}<section><div class="nerr">{{ error }}</div></section>{% endif %}
-{% if val_note %}<section><div class="nerr">{{ val_note }} <a href="/paper">去开策略模拟 →</a></div></section>{% endif %}
+{% if val_note %}<section><div class="nerr">{{ val_note }} <a href="/paper">Start a strategy simulation →</a></div></section>{% endif %}
 
 {% if res %}
 <section>
-  <h2>{{ ticker }} · {{ first }} → {{ last }}（{{ n }} 个交易日）</h2>
+  <h2>{{ ticker }} · {{ first }} → {{ last }} ({{ n }} trading days)</h2>
   {{ svgchart(eq) }}
-  <div class="muted" style="margin-top:6px">资金曲线（对数坐标，起点 = 1）。虚线右边是<b>样本外</b>：调参时别看它，最后用它检验。</div>
+  <div class="muted" style="margin-top:6px">Equity curve (log scale, start = 1). Right of the dashed line is<b>Out-of-sample</b>: don’t look at it while tuning; use it for the final check.</div>
   <div class="scroll" style="margin-top:10px"><table>
-    <tr><th>策略</th><th>年化</th><th>vs 持有</th><th>最大回撤</th><th>夏普</th><th>交易</th><th>胜率</th><th>平均持有</th><th>在场时间</th><th>成本拖累</th></tr>
+    <tr><th>Strategy</th><th>CAGR</th><th>vs hold</th><th>Max drawdown</th><th>Sharpe</th><th>Trades</th><th>Win rate</th><th>Avg hold</th><th>Time in market</th><th>Cost drag</th></tr>
     {% for x in rows %}{% set m = x.r.m %}
     <tr><td><span style="color:{{ x.color }}">●</span> {{ x.name }}</td>
       <td>{{ pct(m.cagr) }}</td>
@@ -44,13 +44,13 @@
       <td>{{ '%.2f' % m.sharpe if m.sharpe is not none else '—' }}</td>
       <td>{{ m.trades }}</td>
       <td>{{ pct(m.win) if not loop.first else '—' }}</td>
-      <td>{{ '%.0f 天' % m.avg_days if m.avg_days is not none and not loop.first else '—' }}</td>
+      <td>{{ '%.0f days' % m.avg_days if m.avg_days is not none and not loop.first else '—' }}</td>
       <td>{{ pct(m.exposure) }}</td>
       <td>{{ pct(x.r.cost_drag) if x.r.cost_drag is not none else '—' }}</td></tr>
     {% endfor %}
   </table></div>
   <div class="scroll" style="margin-top:12px"><table>
-    <tr><th>策略</th><th>样本内年化</th><th>样本外年化</th><th>样本外 vs 持有</th><th>样本内回撤</th><th>样本外回撤</th></tr>
+    <tr><th>Strategy</th><th>In-sample ann.</th><th>Out-of-sample ann.</th><th>Out-of-sample vs hold</th><th>In-sample drawdown</th><th>Out-of-sample drawdown</th></tr>
     {% for x in rows %}
     <tr><td><span style="color:{{ x.color }}">●</span> {{ x.name }}</td>
       <td>{{ pct(x.r.m_in.cagr) }}</td><td>{{ pct(x.r.m_out.cagr) }}</td>
@@ -58,55 +58,55 @@
       <td>{{ pct(x.r.m_in.mdd) }}</td><td>{{ pct(x.r.m_out.mdd) }}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">样本外从 {{ res.cut_date }} 开始。成本拖累 = 零成本时的年化 − 实际年化（换手越高越大）。年化、回撤都已扣除成本；买入持有的价格含分红再投资。</div>
+  <div class="muted" style="margin-top:6px">Out-of-sample period starts {{ res.cut_date }}. Cost drag = annualized return at zero cost − actual annualized return (larger with higher turnover). Annualized returns and drawdowns are net of costs; buy-and-hold prices include reinvested dividends.</div>
 </section>
 
 {% for x in rows %}{% if not loop.first %}{% set m = x.r.m %}
 <section>
   <h2><span style="color:{{ x.color }}">●</span> {{ x.name }}</h2>
-  <div class="rule"><b>买入：</b>{{ x.desc.entry }}</div>
-  <div class="rule"><b>卖出：</b>{{ x.desc.exit }}</div>
+  <div class="rule"><b>Buy: </b>{{ x.desc.entry }}</div>
+  <div class="rule"><b>Sell: </b>{{ x.desc.exit }}</div>
   {% if x.r.spec.note %}<div class="rule">{{ x.r.spec.note }}</div>{% endif %}
   {% set rb = x.robust %}
   {% if x.excess > 0 and x.excess_out > 0 and (not rb or rb[0] / rb[1] >= 0.6) %}
-  <div class="verdict good">全期和样本外都跑赢买入持有{% if rb %}，参数微调后样本外仍跑赢的有 {{ rb[0] }}/{{ rb[1] }} 组{% endif %}。下一步：换几只不同的股票试试，再开一个模拟盘做前向验证。</div>
+  <div class="verdict good">Beat buy-and-hold over the full period and out of sample{% if rb %}; after small parameter tweaks, out-of-sample still beat it in {{ rb[0] }}/{{ rb[1] }} variants{% endif %}. Next step: try a few different stocks, then open a paper trading account for forward testing.</div>
   {% elif x.excess > 0 and x.excess_out <= 0 %}
-  <div class="verdict bad">只在前期有效、样本外跑输买入持有：可能是参数过拟合，或者市场环境变了。</div>
+  <div class="verdict bad">Worked only in the earlier period and lost to buy-and-hold out of sample: the parameters may be overfit, or the market regime changed.</div>
   {% elif x.excess > 0 %}
-  <div class="verdict">跑赢了买入持有，但参数微调后样本外只有 {{ rb[0] }}/{{ rb[1] }} 组仍跑赢，说明结果对参数比较敏感，小心过拟合。</div>
+  <div class="verdict">Beat buy-and-hold, but after small parameter tweaks only {{ rb[0] }}/{{ rb[1] }} variants still beat it out of sample, so the result is sensitive to parameters. Beware of overfitting.</div>
   {% elif m.sharpe and rows[0].r.m.sharpe and m.sharpe > rows[0].r.m.sharpe and m.mdd > rows[0].r.m.mdd %}
-  <div class="verdict">收益不如买入持有，但回撤更小、夏普更高。值不值得，要看你更在乎收益还是睡得着觉。</div>
+  <div class="verdict">Lower return than buy-and-hold, but smaller drawdowns and a higher Sharpe. Whether it is worth it depends on whether you care more about returns or sleeping well.</div>
   {% else %}
-  <div class="verdict bad">收益和风险调整后收益都不如买入持有。{% if x.r.cost_drag and x.r.cost_drag > 0.01 %}光交易成本每年就吃掉 {{ '%.1f' % (x.r.cost_drag * 100) }}%。{% endif %}</div>
+  <div class="verdict bad">Both return and risk-adjusted return trail buy-and-hold.{% if x.r.cost_drag and x.r.cost_drag > 0.01 %} Trading costs alone eat {{ '%.1f' % (x.r.cost_drag * 100) }}%. {% endif %}</div>
   {% endif %}
   {{ svgchart(x.price_chart, false) }}
-  <div class="muted">▲ 买入　▼ 卖出（鼠标悬停看日期和价格）</div>
+  <div class="muted">▲ Buy  ▼ Sell (hover to see date and price)</div>
   {% if x.r.sens %}
-  <details class="tr"><summary>参数敏感性：{{ rb[0] }}/{{ rb[1] }} 组样本外仍跑赢持有</summary>
+  <details class="tr"><summary>Parameter sensitivity: {{ rb[0] }}/{{ rb[1] }} variants still beat hold out of sample</summary>
     <div class="scroll"><table>
-      <tr><th>改动</th><th>全期 vs 持有</th><th>样本外 vs 持有</th></tr>
-      <tr><td class="l"><b>当前参数</b></td><td>{{ pct(x.excess, true) }}</td><td>{{ pct(x.excess_out, true) }}</td></tr>
+      <tr><th>Change</th><th>Full period vs hold</th><th>Out-of-sample vs hold</th></tr>
+      <tr><td class="l"><b>Current parameters</b></td><td>{{ pct(x.excess, true) }}</td><td>{{ pct(x.excess_out, true) }}</td></tr>
       {% for v in x.r.sens %}<tr><td class="l">{{ v.label }}</td><td>{{ pct(v.all, true) }}</td><td>{{ pct(v.out, true) }}</td></tr>{% endfor %}
     </table></div>
-    <div class="muted" style="margin-top:4px">好策略应该在参数附近一片区域都有效，而不是只在某个“最优值”上有效。</div>
+    <div class="muted" style="margin-top:4px">A good strategy should work across a whole region around its parameters, not just at a single “optimal value”.</div>
   </details>
   {% endif %}
-  <details class="tr"><summary>交易记录（{{ x.r.trades|length }} 笔）</summary>
+  <details class="tr"><summary>Trades ({{ x.r.trades|length }} trades)</summary>
     <div class="scroll"><table>
-      <tr><th>买入</th><th>价格</th><th>卖出</th><th>价格</th><th>天数</th><th>收益</th><th>卖出原因</th></tr>
+      <tr><th>Buy</th><th>Price</th><th>Sell</th><th>Price</th><th>Days</th><th>Return</th><th>Exit reason</th></tr>
       {% for t in x.r.trades|reverse %}
       <tr><td>{{ t.entry }}</td><td>{{ '%.2f' % t.entry_px }}</td>
-        <td>{{ t.exit or '持有中' }}</td><td>{{ '%.2f' % t.exit_px if t.exit_px else '—' }}</td>
+        <td>{{ t.exit or 'Holding' }}</td><td>{{ '%.2f' % t.exit_px if t.exit_px else '—' }}</td>
         <td>{{ t.days }}</td><td>{{ pct(t.ret, true) }}</td><td class="l muted">{{ t.why_out }}</td></tr>
       {% endfor %}
     </table></div>
   </details>
-  <div style="margin-top:10px"><a class="btn ghost" href="/paper?s={{ x.r.key }}&ticker={{ ticker }}">用这个策略开模拟盘</a></div>
+  <div style="margin-top:10px"><a class="btn ghost" href="/paper?s={{ x.r.key }}&ticker={{ ticker }}">Open a paper account with this strategy</a></div>
 </section>
 {% endif %}{% endfor %}
 
 <section class="muted" style="font-size:13px">
-  教学用途，不构成投资建议。回测的局限：信号在收盘时判断、次日收盘成交；只做多、满仓进出；单只股票有幸存者偏差（今天还在交易的股票才有数据）；过去有效不代表未来有效。
+  For education only, not investment advice. Backtest limitations: signals are evaluated at the close and filled at the next day’s close; long only, all-in/all-out; single stocks carry survivorship bias (only stocks still trading today have data); past performance does not guarantee future results.
 </section>
 {% endif %}
 {% endblock %}

@@ -1,4 +1,4 @@
-"""模拟交易 /trade: manual paper trading with a journal (learning; no real orders)."""
+"""Paper trading /trade: manual paper trading with a journal (learning; no real orders)."""
 from __future__ import annotations
 
 import asyncio
@@ -37,11 +37,11 @@ async def _form(request: Request) -> dict:
 async def trade_quote(t: str):
     t = t.upper().strip()
     if not TICKER_RE.match(t):
-        return JSONResponse({"error": "代码格式不对"}, status_code=400)
+        return JSONResponse({"error": "Invalid ticker format"}, status_code=400)
     try:
         px = await asyncio.to_thread(trade.live_quote, t)
     except Exception as e:
-        return JSONResponse({"error": f"拿不到 {t} 的报价：{e}"}, status_code=404)
+        return JSONResponse({"error": f"Could not get a quote for {t}: {e}"}, status_code=404)
     return {"ticker": t, "price": px, "open": trade.market_open(datetime.now(timezone.utc))}
 
 
@@ -111,14 +111,14 @@ def _view(aid: int):
         try:
             px = trade.live_quote(t)
         except Exception as e:
-            px, _ = p["avg"], errs.append(f"{t} 报价失败：{e}")
+            px, _ = p["avg"], errs.append(f"{t} quote failed: {e}")
         first = p["orders"][0]
         positions.append({"ticker": t, "qty": p["qty"], "avg": p["avg"], "px": px, "value": p["qty"] * px,
                           "upnl": (px - p["avg"]) * p["qty"], "uret": px / p["avg"] - 1,
                           "stop": first["plan_stop"], "reason": first["reason"],
-                          # target: your own number if you set one, else your DCF fair value (follows the 估值 panel)
+                          # target: your own number if you set one, else your DCF fair value (follows the Valuation panel)
                           "target": first["plan_target"] or dcf[t][0], "manual_target": first["plan_target"],
-                          "target_src": "手动" if first["plan_target"] else ("我的 DCF" if dcf[t][1] else "自动 DCF") if dcf[t][0] else None,
+                          "target_src": "Manual" if first["plan_target"] else ("My DCF" if dcf[t][1] else "Auto DCF") if dcf[t][0] else None,
                           "opened": first["filled_at"][:10], "locked": locked.get(t, 0)})
     equity = a["cash"] + sum(p["value"] for p in positions) + ov
     try:
@@ -146,9 +146,9 @@ async def trade_account(request: Request, aid: int):
     series = [(created, v["a"]["capital"], v["a"]["capital"])] + [s for s in series if s[0] > created]
     eq_chart = None
     if len(series) >= 2:
-        lines = [{"label": "我的账户", "color": "var(--accent)", "values": [s[1] for s in series]}]
+        lines = [{"label": "My accounts", "color": "var(--accent)", "values": [s[1] for s in series]}]
         if all(s[2] for s in series):
-            lines.insert(0, {"label": "同期 SPY", "color": "var(--muted)", "values": [s[2] for s in series]})
+            lines.insert(0, {"label": "SPY (same period)", "color": "var(--muted)", "values": [s[2] for s in series]})
         eq_chart = chart(lines, [s[0] for s in series], h=160, log=False)
     v.update(eq=eq_chart, mdd=trade.max_drawdown([s[1] for s in series]),
              err=request.query_params.get("err"), ok=request.query_params.get("ok"),
@@ -161,7 +161,7 @@ async def trade_account(request: Request, aid: int):
 async def trade_order(request: Request, aid: int):
     f = await _form(request)
     if not TICKER_RE.match((f.get("ticker") or "").upper().strip()):
-        return RedirectResponse(f"/trade/{aid}?err=" + urlquote("股票代码格式不对"), status_code=303)
+        return RedirectResponse(f"/trade/{aid}?err=" + urlquote("Invalid ticker format"), status_code=303)
     def go():
         conn = _conn()
         try:
@@ -174,14 +174,14 @@ async def trade_order(request: Request, aid: int):
     except trade.OrderError as e:
         return RedirectResponse(f"/trade/{aid}?err=" + urlquote(str(e)), status_code=303)
     except Exception as e:
-        return RedirectResponse(f"/trade/{aid}?err=" + urlquote(f"下单失败：{e}"), status_code=303)
-    verb = "买入" if o["side"] == "buy" else "卖出"
+        return RedirectResponse(f"/trade/{aid}?err=" + urlquote(f"Order failed: {e}"), status_code=303)
+    verb = "Buy" if o["side"] == "buy" else "Sell"
     if o["status"] == "filled":
-        msg = f"已成交：{verb} {o['ticker']} {o['qty']:g} 股 @ {o['fill_px']:.2f}" + (f"（{o['msg']}）" if o["msg"] else "")
+        msg = f"Filled: {verb} {o['ticker']} {o['qty']:g} shares @ {o['fill_px']:.2f}" + (f"({o['msg']})" if o["msg"] else "")
     elif o["status"] == "rejected":
         return RedirectResponse(f"/trade/{aid}?err=" + urlquote(o["msg"]), status_code=303)
     else:
-        msg = f"挂单中：{verb} {o['ticker']} {o['qty']:g} 股，{'限价' if o['kind'] == 'limit' else '止损价'} {o['px']:.2f}，每天收盘后按日线撮合"
+        msg = f"Pending: {verb} {o['ticker']} {o['qty']:g} shares, {'Limit' if o['kind'] == 'limit' else 'stop price'} {o['px']:.2f}, matched against the daily bar after each close"
     return RedirectResponse(f"/trade/{aid}?ok=" + urlquote(msg), status_code=303)
 
 
@@ -191,12 +191,12 @@ async def trade_transfer(request: Request, aid: int):
     t = (f.get("ticker") or "").upper().strip()
     def go():
         if not TICKER_RE.match(t):
-            raise trade.OrderError("股票代码格式不对")
+            raise trade.OrderError("Invalid ticker format")
         try:
             qty = float(f.get("qty") or 0)
             cost = float(f["cost"]) if f.get("cost") else None
         except ValueError:
-            raise trade.OrderError("股数 / 成本需要是数字")
+            raise trade.OrderError("Shares / cost must be numbers")
         conn = _conn()
         try:
             trade.transfer_in(conn, aid, t, qty, cost, datetime.now(timezone.utc))
@@ -207,7 +207,7 @@ async def trade_transfer(request: Request, aid: int):
         qty = await asyncio.to_thread(go)
     except trade.OrderError as e:
         return RedirectResponse(f"/trade/{aid}?err=" + urlquote(str(e)), status_code=303)
-    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote(f"已转入 {t} {qty:g} 股" + ("，可以去卖备兑 call 了" if qty >= 100 else "")),
+    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote(f"Transferred in {t} {qty:g} shares" + (", ready to sell covered calls" if qty >= 100 else "")),
                             status_code=303)
 
 
@@ -218,7 +218,7 @@ async def trade_transfer_fix(request: Request, aid: int, oid: int):
         try:
             qty = float(f.get("qty") or 0)
         except ValueError:
-            raise trade.OrderError("股数需要是数字")
+            raise trade.OrderError("Shares must be a number")
         conn = _conn()
         try:
             trade.fix_transfer(conn, aid, oid, qty, datetime.now(timezone.utc))
@@ -229,7 +229,7 @@ async def trade_transfer_fix(request: Request, aid: int, oid: int):
         qty = await asyncio.to_thread(go)
     except trade.OrderError as e:
         return RedirectResponse(f"/trade/{aid}?err=" + urlquote(str(e)), status_code=303)
-    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote("已删除这笔转入" if qty == 0 else f"已改成 {qty:g} 股"),
+    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote("Deleted this transfer" if qty == 0 else f"Changed to {qty:g} shares"),
                             status_code=303)
 
 
@@ -242,7 +242,7 @@ async def trade_plan(request: Request, aid: int):
             stop = float(f["stop"]) if f.get("stop") else None
             target = float(f["target"]) if f.get("target") else None
         except ValueError:
-            raise trade.OrderError("价格需要是数字")
+            raise trade.OrderError("Price must be a number")
         conn = _conn()
         try:
             trade.set_plan(conn, aid, t, stop, target)
@@ -252,7 +252,7 @@ async def trade_plan(request: Request, aid: int):
         await asyncio.to_thread(go)
     except trade.OrderError as e:
         return RedirectResponse(f"/trade/{aid}?err=" + urlquote(str(e)), status_code=303)
-    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote(f"已更新 {t} 的止损 / 目标"), status_code=303)
+    return RedirectResponse(f"/trade/{aid}?ok=" + urlquote(f"Updated stop / target for {t}"), status_code=303)
 
 
 @router.post("/trade/{aid}/cancel/{oid}")
@@ -309,10 +309,10 @@ def _opt_view(aid: int, u: str, e: str, c: str):
     try:
         exps = options.expiries(u)
     except Exception as ex:
-        out["errs"].append(f"拿不到 {u} 的期权到期日：{ex}")
+        out["errs"].append(f"Could not get option expirations for {u}: {ex}")
         return out
     if not exps:
-        out["errs"].append(f"{u} 没有上市期权")
+        out["errs"].append(f"{u} has no listed options")
         return out
     today = now.astimezone(trade.NY).date()
     out["exps"] = [(x, (date.fromisoformat(x) - today).days) for x in exps]
@@ -328,7 +328,7 @@ def _opt_view(aid: int, u: str, e: str, c: str):
         ch = options.chain(u, e)
         spot = trade.live_quote(u)
     except Exception as ex:
-        out["errs"].append(f"期权链读取失败：{ex}")
+        out["errs"].append(f"Failed to load option chain: {ex}")
         return out
     t = options.years_left(date.fromisoformat(e), now)
     def dl(r):
@@ -381,15 +381,15 @@ async def trade_opt_order(request: Request, aid: int):
     except trade.OrderError as e:
         return RedirectResponse(back + "&err=" + urlquote(str(e)), status_code=303)
     except Exception as e:
-        return RedirectResponse(back + "&err=" + urlquote(f"下单失败：{e}"), status_code=303)
-    verb = "买入" if o["side"] == "buy" else "卖出"
+        return RedirectResponse(back + "&err=" + urlquote(f"Order failed: {e}"), status_code=303)
+    verb = "Buy" if o["side"] == "buy" else "Sell"
     name = options.label(options.parse(o["contract"]))
     if o["status"] == "rejected":
         return RedirectResponse(back + "&err=" + urlquote(o["msg"]), status_code=303)
     if o["status"] == "filled":
-        msg = f"已成交：{verb} {name} {o['qty']} 张 @ {o['fill_px']:.2f}" + (f"（{o['msg']}）" if o["msg"] else "")
+        msg = f"Filled: {verb} {name} {o['qty']} contracts @ {o['fill_px']:.2f}" + (f"({o['msg']})" if o["msg"] else "")
     else:
-        msg = f"挂单中：{verb} {name} {o['qty']} 张，限价 {o['px']:.2f}"
+        msg = f"Pending: {verb} {name} {o['qty']} contracts, limit {o['px']:.2f}"
     return RedirectResponse(back + "&ok=" + urlquote(msg), status_code=303)
 
 

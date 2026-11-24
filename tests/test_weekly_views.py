@@ -37,7 +37,7 @@ def conn(tmp_path):
 
 
 def cfg():
-    return Config(holdings=["MSFT"], watchlist=[], macro={"fred": {"DGS10": "10年期美债", "DFEDTARU": "利率上限"}})
+    return Config(holdings=["MSFT"], watchlist=[], macro={"fred": {"DGS10": "10Y Treasury", "DFEDTARU": "Rate ceiling"}})
 
 
 def test_fed_path_and_gap(conn):
@@ -61,21 +61,21 @@ def test_week_moves(conn):
 
 def test_bundle_contains_sections(conn):
     b = weekly.build_bundle(conn, cfg(), NOW)
-    for s in ["MSFT", "-10.0%", "高管/董事变动", "买入 1 笔", "即将发布 2026-11-12", "10年期美债",
-              "预期差 +0bp", "Above 3.50%", "Thesis 摘要"]:
+    for s in ["MSFT", "-10.0%", "Officer/director change", "Buy 1 trade(s)", "Upcoming 2026-11-12", "10Y Treasury",
+              "Gap +0bp", "Above 3.50%", "Thesis summaries"]:
         assert s in b, s
 
 
 def test_generate_success_and_fallback(conn):
-    rid, ok = weekly.generate(conn, cfg(), NOW, runner=lambda p: "# 周报\n一句话")
-    assert ok and conn.execute("SELECT markdown FROM reports WHERE id=?", (rid,)).fetchone()[0].startswith("# 周报")
+    rid, ok = weekly.generate(conn, cfg(), NOW, runner=lambda p: "# Weekly report\nOne-liner")
+    assert ok and conn.execute("SELECT markdown FROM reports WHERE id=?", (rid,)).fetchone()[0].startswith("# Weekly report")
 
     def boom(p):
         raise RuntimeError("not logged in")
 
     rid2, ok2 = weekly.generate(conn, cfg(), NOW, runner=boom)
     md = conn.execute("SELECT markdown FROM reports WHERE id=?", (rid2,)).fetchone()[0]
-    assert not ok2 and "not logged in" in md and "## 持仓" in md
+    assert not ok2 and "not logged in" in md and "## Holdings" in md
 
 
 def test_theses_matching(tmp_path, conn):

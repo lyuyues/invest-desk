@@ -68,7 +68,7 @@ def project(inp: dict) -> dict:
     """Recompute the DCF from (possibly user-edited) inputs."""
     rr, tg = inp["rr"], inp["terminal"]
     if rr <= tg:
-        raise ValueError("折现率必须大于永续增长率")
+        raise ValueError("Discount rate must be greater than the perpetual growth rate")
     analyst = [a for a in inp.get("analyst") or [] if a]
     n = len(analyst)
     if inp.get("use_path") and inp.get("path"):
@@ -117,7 +117,7 @@ def fix_share_units(auto: dict, implied: float | None) -> str | None:
     if not implied or not sec or 1 / 3 < sec / implied < 3:
         return None
     auto["shares"] = implied
-    return f"SEC 股数 {sec:,.0f}M 与报价口径不符（如 A/B 股），改用市值/股价推算的 {implied:,.0f}M"
+    return f"SEC share count {sec:,.0f}M doesn’t match the quote basis (e.g. A/B shares); using {implied:,.0f}M implied from market cap / price"
 
 
 def latest_price(conn: sqlite3.Connection, ticker: str) -> float | None:
@@ -164,10 +164,10 @@ def compute(conn: sqlite3.Connection, t: str, builder, shares_of=market_shares, 
     data = {"hist": _table(hist), "proj": _table(proj), "quarterly": q,
             "meta": {k.strip(): _clean(v) for k, v in meta.items()}, "auto": auto, "note": note}
     if auto["rr"] <= auto["terminal"]:
-        raise ValueError("引擎回报率不大于永续增长率")
+        raise ValueError("Engine required return is not greater than the perpetual growth rate")
     data["wacc"] = apply_wacc(conn, t, auto, data["hist"], data["meta"], profile_of, price)
     if auto["rr"] <= auto["terminal"] + 0.01:  # keep the Gordon formula sane
-        data["wacc"]["notes"].append(f"WACC {auto['rr']:.1%} 太接近永续增长率，折现率按永续增长 + 1% 下限")
+        data["wacc"]["notes"].append(f"WACC {auto['rr']:.1%} is too close to the perpetual growth rate; discount rate floored at perpetual growth + 1%")
         auto["rr"] = round(auto["terminal"] + 0.01, 4)
     return data
 
@@ -245,7 +245,7 @@ def summary(conn: sqlite3.Connection, tickers: list[str]) -> list[dict]:
         v = load(conn, t)
         q = conn.execute("SELECT price, pe FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (t,)).fetchone()
         row = {"ticker": t, "price": q["price"] if q else None, "pe": q["pe"] if q else None,
-               "error": v["error"] if v else "尚未计算", "updated": v["updated"] if v else None,
+               "error": v["error"] if v else "Not computed yet", "updated": v["updated"] if v else None,
                "auto": None, "mine": None}
         if v and v["data"]:
             a = v["data"]["auto"]

@@ -16,10 +16,10 @@ SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
 
 ITEM_NAMES = {
-    "1.01": "重大协议", "1.02": "终止重大协议", "1.03": "破产", "2.01": "完成收购/处置",
-    "2.02": "财报", "2.05": "重组/退出成本", "2.06": "资产减值", "3.01": "退市通知",
-    "4.01": "更换审计师", "4.02": "财报不可依赖（重述）", "5.02": "高管/董事变动",
-    "5.07": "股东大会投票", "7.01": "Reg FD 披露", "8.01": "其他事件", "9.01": "附件",
+    "1.01": "Material agreement", "1.02": "Termination of material agreement", "1.03": "Bankruptcy", "2.01": "Completed acquisition/disposition",
+    "2.02": "Earnings", "2.05": "Restructuring/exit costs", "2.06": "Asset impairment", "3.01": "Delisting notice",
+    "4.01": "Auditor change", "4.02": "Non-reliance on financials (restatement)", "5.02": "Officer/director change",
+    "5.07": "Shareholder vote", "7.01": "Reg FD disclosure", "8.01": "Other events", "9.01": "Exhibits",
 }
 
 
@@ -191,4 +191,4 @@ def collect(conn: sqlite3.Connection, tickers: list[str], get: Getter, today: da
 
 def item_labels(items: str) -> str:
     codes = [c.strip() for c in items.split(",") if c.strip() and c.strip() != "9.01"]
-    return "、".join(f"{c} {ITEM_NAMES.get(c, '')}".strip() for c in codes) or "附件"
+    return ", ".join(f"{c} {ITEM_NAMES.get(c, '')}".strip() for c in codes) or "Exhibits"

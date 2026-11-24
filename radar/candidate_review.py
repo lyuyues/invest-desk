@@ -12,19 +12,19 @@ from radar.weekly import Runner, _fmt
 
 log = logging.getLogger(__name__)
 
-PROMPT = """你是用户的投资研究助理。下面是本周 Invest Radar 发现的候选股票（用户还没跟踪），每只附带命中的渠道和 DCF 估值。
-为每只写一句点评。可以用网络搜索快速核实最新情况（只查必要的，别展开）。不编造数字，不给买卖指令。
+PROMPT = """You are the user’s investment research assistant. Below are this week’s candidate stocks found by Invest Radar (not yet tracked by the user), each with the channels it hit and a DCF valuation.
+Write a one-sentence comment for each. You may use web search to quickly check the latest news (only what is necessary; don’t go deep). Do not make up numbers; do not give buy/sell instructions.
 
-严格按下面格式，每只一行，不要别的内容：
-代码 | 值得看的理由（≤40字） | 主要风险（≤30字）
+Follow this format strictly, one line per stock, nothing else:
+Ticker | Why it’s worth a look (≤40 words) | Main risk (≤30 words)
 
-用户的投资原则：
+User’s investment principles:
 {principles}
 
-# 候选
+# Candidates
 {cands}"""
 
-LINE = re.compile(r"^\s*([A-Z][A-Z0-9.\-]{0,9})\s*[|｜]\s*(.+?)\s*[|｜]\s*(.+?)\s*$", re.M)
+LINE = re.compile(r"^\s*([A-Z][A-Z0-9.\-]{0,9})\s*[||]\s*(.+?)\s*[||]\s*(.+?)\s*$", re.M)
 
 
 def pick(rows: list[dict], tracked: set[str], n: int) -> list[dict]:
@@ -37,13 +37,13 @@ def build_prompt(conn: sqlite3.Connection, cands: list[dict], val: dict[str, dic
     L = []
     for c in cands:
         v = val.get(c["ticker"]) or {}
-        notes = "；".join(n for ns in c["detail"].values() for n in ns[:3])
+        notes = "; ".join(n for ns in c["detail"].values() for n in ns[:3])
         fair = v.get("auto")
-        L.append(f"- {c['ticker']}（渠道：{'+'.join(c['channels'])}）：{notes[:400]}。"
-                 f"价格 {_fmt(v.get('price'))}，P/E {_fmt(v.get('pe'), '{:.1f}')}，"
-                 + (f"DCF 公允价值 {fair:.2f}（上涨空间 {_fmt(v.get('upside'), '{:+.0f}%')}，FCF 利润率 {v['fcf_margin']:.0%}）"
-                    if fair and fair > 0 else f"DCF：{v.get('error') or '不适用'}"))
-    return PROMPT.format(principles=th["body"] if th else "（未填写）", cands="\n".join(L))
+        L.append(f"- {c['ticker']} (channels: {'+'.join(c['channels'])}): {notes[:400]}."
+                 f"Price {_fmt(v.get('price'))}, P/E {_fmt(v.get('pe'), '{:.1f}')}, "
+                 + (f"DCF fair value {fair:.2f} (upside {_fmt(v.get('upside'), '{:+.0f}%')}, FCF margin {v['fcf_margin']:.0%})"
+                    if fair and fair > 0 else f"DCF: {v.get('error') or 'N/A'}"))
+    return PROMPT.format(principles=th["body"] if th else "(not filled in)", cands="\n".join(L))
 
 
 def parse(text: str) -> dict[str, tuple[str, str]]:

@@ -37,12 +37,12 @@ def test_bundle_and_generate(tmp_path):
     pre = {"MSFT": {"pre": 510.0, "prev": 500.0}, "AMAT": {"pre": None, "prev": 200.0}}
     gauges = {"ES=F": {"last": 6000.0, "prev": 6060.0}}
     b = daily.build_bundle(conn, cfg(), NOW, pre, gauges)
-    for s in ["| MSFT | 持仓 | 500.00 | 510.00 | +2.0% |", "无盘前成交", "标普500期货", "-0.99%",
-              "即将发布 2026-11-12", "09:25 纽约时间"]:
+    for s in ["| MSFT | Holdings | 500.00 | 510.00 | +2.0% |", "no pre-market trades", "S&P 500 futures", "-0.99%",
+              "Upcoming 2026-11-12", "09:25 New York time"]:
         assert s in b, s
-    rid, ok = daily.generate(conn, cfg(), NOW, lambda p: "# 日报\n一句话", pre, gauges)
+    rid, ok = daily.generate(conn, cfg(), NOW, lambda p: "# Daily brief\nOne-liner", pre, gauges)
     row = conn.execute("SELECT kind, title FROM reports WHERE id=?", (rid,)).fetchone()
-    assert ok and row["kind"] == "daily" and row["title"] == "日报 2026-11-10"
+    assert ok and row["kind"] == "daily" and row["title"] == "Daily brief 2026-11-10"
 
 
 def test_kind_migration(tmp_path):
@@ -51,7 +51,7 @@ def test_kind_migration(tmp_path):
     c = sqlite3.connect(p)
     c.execute("CREATE TABLE reports (id INTEGER PRIMARY KEY, created TEXT NOT NULL, title TEXT NOT NULL, "
               "markdown TEXT NOT NULL, ok INTEGER NOT NULL)")
-    c.execute("INSERT INTO reports (created, title, markdown, ok) VALUES ('t','周报','x',1)")
+    c.execute("INSERT INTO reports (created, title, markdown, ok) VALUES ('t','Weekly report','x',1)")
     c.commit()
     c.close()
     assert db.connect(p).execute("SELECT kind FROM reports").fetchone()[0] == "weekly"
@@ -65,8 +65,8 @@ def web(tmp_path, monkeypatch):
     monkeypatch.setenv("RADAR_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "r.db"))
     conn = db.connect(tmp_path / "r.db")
-    conn.execute("INSERT INTO reports (created,title,markdown,ok,kind) VALUES ('2026-11-08T03:00:00+00:00','周报 W','# w',1,'weekly')")
-    conn.execute("INSERT INTO reports (created,title,markdown,ok,kind) VALUES ('2026-11-10T14:28:00+00:00','日报 2026-11-10','# 今日一句话',1,'daily')")
+    conn.execute("INSERT INTO reports (created,title,markdown,ok,kind) VALUES ('2026-11-08T03:00:00+00:00','Weekly report W','# w',1,'weekly')")
+    conn.execute("INSERT INTO reports (created,title,markdown,ok,kind) VALUES ('2026-11-10T14:28:00+00:00','Daily brief 2026-11-10','# Today’s one-liner',1,'daily')")
     conn.commit()
     conn.close()
     from web.app import app
@@ -75,8 +75,8 @@ def web(tmp_path, monkeypatch):
 
 def test_daily_pages(web):
     r = web.get("/daily")
-    assert r.status_code == 200 and "今日一句话" in r.text
-    assert "日报 2026-11-10" not in web.get("/reports").text and "周报 W" in web.get("/reports").text
+    assert r.status_code == 200 and "Today’s one-liner" in r.text
+    assert "Daily brief 2026-11-10" not in web.get("/reports").text and "Weekly report W" in web.get("/reports").text
     assert web.get("/daily/2").status_code == 200
     assert web.get("/daily/1").status_code == 404  # weekly id is not a daily brief
 

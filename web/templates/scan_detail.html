@@ -1,46 +1,46 @@
 {% extends "base.html" %}
 {% from "_chart.html" import svgchart, pct, chart_css %}
-{% block title %}全市场组合 #{{ a.id }} · Invest Radar{% endblock %}
+{% block title %} Market-wide portfolio #{{ a.id }} · Invest Radar{% endblock %}
 {% block content %}
-{% macro src(t) %}{% if t in mine %} <span class="chip">我的</span>{% endif %}{% endmacro %}
+{% macro src(t) %}{% if t in mine %} <span class="chip">Mine</span>{% endif %}{% endmacro %}
 {{ chart_css() }}
 {% if err %}<section><div class="nerr">{{ err }}</div></section>{% endif %}
 {% if newer %}
 <section>
-  <h2>策略改过了</h2>
-  <div class="muted">你在策略模拟里改了「{{ newer.name }}」。这个组合还在用开组合时的版本。</div>
-  <div class="rule"><b>新的买入：</b>{{ newer.desc.entry }}</div>
-  <div class="rule"><b>新的卖出：</b>{{ newer.desc.exit }}</div>
-  <form method="post" action="/scan/{{ a.id }}/sync" style="margin-top:8px"><button class="btn">改用新版本</button></form>
-  <div class="muted" style="margin-top:6px;font-size:13px">已成交的不动；上一个收盘产生、还没成交的信号会按新规则重新判断。</div>
+  <h2>Strategy has changed</h2>
+  <div class="muted">You edited “{{ newer.name }}” in Strategy simulation. This portfolio still uses the version from when it was opened.</div>
+  <div class="rule"><b>New entry: </b>{{ newer.desc.entry }}</div>
+  <div class="rule"><b>New exit: </b>{{ newer.desc.exit }}</div>
+  <form method="post" action="/scan/{{ a.id }}/sync" style="margin-top:8px"><button class="btn">Switch to new version</button></form>
+  <div class="muted" style="margin-top:6px;font-size:13px">Filled trades stay as they are; signals from the last close that haven’t filled yet are re-evaluated under the new rules.</div>
 </section>
 {% endif %}
 <section>
-  <h2><a href="/paper#scan" style="color:inherit">全市场组合</a> #{{ a.id }} · {{ a.name }} {% if not a.active %}<span class="chip">已停止</span>{% endif %}</h2>
-  <div class="rule"><b>买入：</b>{{ desc.entry }}</div>
-  <div class="rule"><b>卖出：</b>{{ desc.exit }}</div>
+  <h2><a href="/paper#scan" style="color:inherit">Market-wide portfolio</a> #{{ a.id }} · {{ a.name }} {% if not a.active %}<span class="chip">Stopped</span>{% endif %}</h2>
+  <div class="rule"><b>Buy: </b>{{ desc.entry }}</div>
+  <div class="rule"><b>Sell: </b>{{ desc.exit }}</div>
   <div class="stats">
-    <div>权益<b>{{ '{:,.0f}'.format(equity) }}</b></div>
-    <div>收益<b>{{ pct(equity / a.capital - 1, true) }}</b></div>
-    <div>同期 SPY<b>{{ pct(bench / a.capital - 1, true) if bench else '—' }}</b></div>
-    <div>现金<b>{{ '{:,.0f}'.format(a.cash) }}</b></div>
-    <div>持仓<b>{{ pos|length }} / {{ a.max_pos }}</b></div>
-    <div>成本<b>{{ '%.0f' % (a.cost * 10000) }}bp</b></div>
+    <div>Equity<b>{{ '{:,.0f}'.format(equity) }}</b></div>
+    <div>Return<b>{{ pct(equity / a.capital - 1, true) }}</b></div>
+    <div>SPY (same period)<b>{{ pct(bench / a.capital - 1, true) if bench else '—' }}</b></div>
+    <div>Cash<b>{{ '{:,.0f}'.format(a.cash) }}</b></div>
+    <div>Holdings<b>{{ pos|length }} / {{ a.max_pos }}</b></div>
+    <div>Cost<b>{{ '%.0f' % (a.cost * 10000) }}bp</b></div>
   </div>
-  <div class="muted" style="margin-top:8px">开始于 {{ a.created[:10] }}，已结算到 {{ a.last_date or '—（等第一个收盘）' }}。
-    股票池 {{ cov.universe }} 只，已算 DCF {{ cov.valued }} 只（{{ cov.with_fair }} 只有正的合理价）。
-    合理价：在估值面板上的股票用你自己的 DCF 假设，其余用自动 DCF。上涨空间超过 {{ max_upside|int }}% 的视为数据可疑，跳过。</div>
+  <div class="muted" style="margin-top:8px">Started on {{ a.created[:10] }}, settled through {{ a.last_date or '—(waiting for first close)' }}.
+    Universe {{ cov.universe }} stocks, DCF computed for {{ cov.valued }} stocks ({{ cov.with_fair }} with a positive fair value).
+    Fair value: stocks on the valuation panel use your own DCF assumptions, the rest use the automatic DCF. Upside above {{ max_upside|int }}% is treated as suspect data and skipped.</div>
   {% if eq %}<div style="margin-top:10px">{{ svgchart(eq) }}</div>{% endif %}
-  {% if a.active %}<form method="post" action="/scan/{{ a.id }}/stop" style="margin-top:10px" onsubmit="if(this.dataset.armed)return true;this.dataset.armed=1;this.querySelector('button').textContent='确认停止？';return false"><button class="btn ghost">停止</button></form>{% endif %}
+  {% if a.active %}<form method="post" action="/scan/{{ a.id }}/stop" style="margin-top:10px" onsubmit="if(this.dataset.armed)return true;this.dataset.armed=1;this.querySelector('button').textContent='Confirm stop?';return false"><button class="btn ghost">Stop</button></form>{% endif %}
 </section>
 
 {% if pending %}
 <section>
-  <h2>待成交（下一交易日收盘）</h2>
+  <h2>Pending (next trading day’s close)</h2>
   <table>
-    <tr><th>方向</th><th>代码</th><th>原因</th><th>信号日</th></tr>
+    <tr><th>Side</th><th>Ticker</th><th>Reason</th><th>Signal date</th></tr>
     {% for p in pending %}
-    <tr><td class="{{ 'up' if p.side == 'buy' else 'down' }}">{{ '买' if p.side == 'buy' else '卖' }}</td>
+    <tr><td class="{{ 'up' if p.side == 'buy' else 'down' }}">{{ 'Buy' if p.side == 'buy' else 'Sell' }}</td>
       <td><a href="/t/{{ p.ticker }}">{{ p.ticker }}</a></td><td class="l muted">{{ p.why }}</td><td>{{ p.created }}</td></tr>
     {% endfor %}
   </table>
@@ -48,10 +48,10 @@
 {% endif %}
 
 <section>
-  <h2>持仓</h2>
+  <h2>Holdings</h2>
   {% if pos %}
   <div class="scroll"><table>
-    <tr><th>代码</th><th>买入日</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>合理价</th><th>上涨空间</th></tr>
+    <tr><th>Ticker</th><th>Entry date</th><th>Cost</th><th>Price</th><th>Market cap</th><th>P&L</th><th>Fair value</th><th>Upside</th></tr>
     {% for p in pos %}
     <tr><td class="l"><a href="/v/{{ p.ticker }}?from={{ a.id }}">{{ p.ticker }}</a> <span class="muted" style="font-size:12px">{{ p.name }}</span></td>
       <td>{{ p.entry_date }}</td><td>{{ '%.2f' % p.entry_px }}</td><td>{{ '%.2f' % p.px }}</td><td>{{ '{:,.0f}'.format(p.value) }}</td>
@@ -59,41 +59,41 @@
       <td>{{ '%+.0f%%' % p.upside if p.upside is not none else '—' }}</td></tr>
     {% endfor %}
   </table></div>
-  {% else %}<div class="muted">空仓。</div>{% endif %}
+  {% else %}<div class="muted">No position.</div>{% endif %}
 </section>
 
 {% if a.active %}
 <section>
-  <h2>{{ '估值达标的股票（再看动量）' if momo_on else '现在满足买入条件的股票' }}</h2>
+  <h2>{{ 'Stocks passing valuation (momentum checked next)' if momo_on else 'Stocks currently meeting the entry conditions' }}</h2>
   {% if cands %}
   <div class="scroll"><table>
-    <tr><th>#</th><th>代码</th><th>价格</th><th>市值（亿美元）</th><th>合理价</th><th>上涨空间</th>{% if momo_on %}<th>动量</th>{% endif %}<th></th></tr>
+    <tr><th>#</th><th>Ticker</th><th>Price</th><th>Market cap ($100M)</th><th>Fair value</th><th>Upside</th>{% if momo_on %}<th>Momentum</th>{% endif %}<th></th></tr>
     {% for c in cands %}
     <tr><td>{{ loop.index }}</td><td class="l"><a href="/v/{{ c.ticker }}?from={{ a.id }}">{{ c.ticker }}</a> <span class="muted" style="font-size:12px">{{ c.name }}</span></td>
       <td>{{ '%.2f' % c.price }}</td><td>{{ '{:,.0f}'.format(c.mcap / 1e8) }}</td>
       <td><a href="/v/{{ c.ticker }}?from={{ a.id }}">{{ '%.2f' % c.fair }}</a>{{ src(c.ticker) }}</td>
       <td class="up">{{ '%+.0f%%' % c.upside }}</td>
-      {% if momo_on %}<td>{% if c.momo == 1 %}<span class="up">有</span>{% elif c.momo == 0 %}<span class="muted">无</span>{% elif c.momo == -1 %}<span class="muted">缺数据</span>{% else %}<span class="muted">收盘后检查</span>{% endif %}</td>{% endif %}
-      <td class="acts"><a class="chipbtn" href="/v/{{ c.ticker }}?from={{ a.id }}">查看 / 改假设</a>{{ ' 持有中' if c.ticker in held }}</td></tr>
+      {% if momo_on %}<td>{% if c.momo == 1 %}<span class="up">Yes</span>{% elif c.momo == 0 %}<span class="muted">None</span>{% elif c.momo == -1 %}<span class="muted">No data</span>{% else %}<span class="muted">Checked after close</span>{% endif %}</td>{% endif %}
+      <td class="acts"><a class="chipbtn" href="/v/{{ c.ticker }}?from={{ a.id }}">View / edit assumptions</a>{{ ' Holding' if c.ticker in held }}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">点合理价或「查看 / 改假设」进入估值面板：可以看收入、利润率、WACC 的拆解，也可以改增长率、利润率、折现率。改过的会标「我的」，从下一个收盘起按你的合理价判断买卖。按最新价格算，排在前面的会先进入空位。{% if momo_on %}只有「动量」为「有」的才会买入（动量按上一个收盘判断）。{% endif %}DCF 对假设很敏感：上涨空间特别大的，往往是增长率或利润率假设偏乐观，值得点进去看看。</div>
-  {% else %}<div class="muted">暂时没有。{% if cov.valued < cov.universe %}DCF 还没算完，过几个小时再看。{% endif %}</div>{% endif %}
+  <div class="muted" style="margin-top:6px">Click a fair value or “View / edit assumptions” to open the valuation panel: you can see the breakdown of revenue, margins and WACC, and change growth, margins and discount rate. Edited ones are marked “Mine”, and from the next close buys and sells use your fair value. Ranked by latest price, the top ones fill open slots first.{% if momo_on %} Only stocks with “Momentum” = “Yes” are bought (momentum is judged at the previous close).{% endif %} DCF is very sensitive to assumptions: a very large upside often means overly optimistic growth or margin assumptions, so it’s worth clicking in to check.</div>
+  {% else %}<div class="muted">None right now.{% if cov.valued < cov.universe %} DCF isn’t finished yet; check back in a few hours. {% endif %}</div>{% endif %}
 </section>
 {% endif %}
 
 {% if fills %}
 <section>
-  <h2>成交记录</h2>
+  <h2>Trades</h2>
   <div class="scroll"><table>
-    <tr><th>日期</th><th>方向</th><th>代码</th><th>价格</th><th>股数</th><th>手续费</th><th>原因</th></tr>
+    <tr><th>Date</th><th>Side</th><th>Ticker</th><th>Price</th><th>Shares</th><th>Fees</th><th>Reason</th></tr>
     {% for f in fills %}
-    <tr><td>{{ f.date }}</td><td class="{{ 'up' if f.side == 'buy' else 'down' }}">{{ '买' if f.side == 'buy' else '卖' }}</td>
+    <tr><td>{{ f.date }}</td><td class="{{ 'up' if f.side == 'buy' else 'down' }}">{{ 'Buy' if f.side == 'buy' else 'Sell' }}</td>
       <td>{{ f.ticker }}</td><td>{{ '%.2f' % f.price }}</td><td>{{ '%.2f' % f.shares }}</td><td>{{ '%.2f' % f.fee }}</td>
       <td class="l muted">{{ f.reason or '' }}</td></tr>
     {% endfor %}
   </table></div>
 </section>
 {% endif %}
-<section class="muted" style="font-size:13px">学习用的纸面模拟，不是投资建议。没有历史合理价，所以这个策略不能回测，只能从今天开始往前跑；只算价格变化，不含分红。</section>
+<section class="muted" style="font-size:13px">Paper simulation for learning, not investment advice. There is no historical fair value, so this strategy can’t be backtested and can only run forward from today; only price changes are counted, dividends excluded.</section>
 {% endblock %}

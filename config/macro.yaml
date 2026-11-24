@@ -1,49 +1,49 @@
-# 宏观"实际值"— FRED series id → 显示名（keyless CSV，每天 macro 任务拉取）
+# Macro"actuals"— FRED series id → display name (keyless CSV, fetched daily by the macro task)
 fred:
-  DFEDTARU: 联邦基金利率上限
-  DGS10: 10年期美债
-  DGS2: 2年期美债
-  T10Y2Y: 10Y-2Y 利差
+  DFEDTARU: Fed funds upper bound
+  DGS10: 10Y Treasury
+  DGS2: 2Y Treasury
+  T10Y2Y: 10Y-2Y spread
   SOFR: SOFR
-  T5YIE: 5年通胀预期
-  T10YIE: 10年通胀预期
-  T5YIFR: 5年后5年通胀预期
-  DFII10: 10年实际利率
-  ICSA: 首次申领失业金
-  CCSA: 持续申领
-  WEI: 纽约联储周度经济指数
-  IHLIDXUS: Indeed招聘指数
-  MORTGAGE30US: 30年房贷利率
-  NFCI: 芝加哥联储金融条件
-  STLFSI4: 圣路易斯金融压力指数
-  BAMLH0A0HYM2: 高收益债利差
+  T5YIE: 5Y breakeven inflation
+  T10YIE: 10Y breakeven inflation
+  T5YIFR: 5Y5Y forward inflation
+  DFII10: 10Y real yield
+  ICSA: Initial jobless claims
+  CCSA: Continuing claims
+  WEI: NY Fed Weekly Economic Index
+  IHLIDXUS: Indeed job postings index
+  MORTGAGE30US: 30Y mortgage rate
+  NFCI: Chicago Fed financial conditions
+  STLFSI4: St. Louis Fed financial stress index
+  BAMLH0A0HYM2: High-yield spread
   VIXCLS: VIX
-  DTWEXBGS: 美元指数·广义
+  DTWEXBGS: Dollar index (broad)
   DEXCAUS: USD/CAD
-  DCOILWTICO: WTI原油
-  GDPNOW: 亚特兰大联储 GDPNow
-  CPIAUCSL: CPI 指数
-  UNRATE: 失业率
+  DCOILWTICO: WTI crude
+  GDPNOW: Atlanta Fed GDPNow
+  CPIAUCSL: CPI index
+  UNRATE: Unemployment rate
 
-# 宏观页分组（顺序即显示顺序；没列进任何组的 series 放到「其他」）
+# Macro page groups (listed order = display order; series not in any group go under “Other”)
 fred_groups:
-  利率与通胀预期: [DFEDTARU, SOFR, DGS2, DGS10, T10Y2Y, DFII10, T5YIE, T10YIE, T5YIFR]
-  实体经济·周度: [ICSA, CCSA, WEI, IHLIDXUS, MORTGAGE30US]
-  金融条件: [NFCI, STLFSI4, BAMLH0A0HYM2, VIXCLS, DTWEXBGS, DEXCAUS, DCOILWTICO]
+  Rates & inflation expectations: [DFEDTARU, SOFR, DGS2, DGS10, T10Y2Y, DFII10, T5YIE, T10YIE, T5YIFR]
+  Real economy · Weekly: [ICSA, CCSA, WEI, IHLIDXUS, MORTGAGE30US]
+  Financial conditions: [NFCI, STLFSI4, BAMLH0A0HYM2, VIXCLS, DTWEXBGS, DEXCAUS, DCOILWTICO]
   Nowcast: [GDPNOW]
-  月度（滞后）: [CPIAUCSL, UNRATE]
+  Monthly (lagging): [CPIAUCSL, UNRATE]
 
-# 宏观"预期"（领先）— 预测市场
+# Macro"Expected" (leading): prediction markets
 markets:
-  # 字符串 = 只给 ticker；或 {series, label, max_events}。ticker 来自 Kalshi 公开 API /series?category=Economics
+  # A string = ticker only; or {series, label, max_events}. Tickers come from the Kalshi public API /series?category=Economics
   kalshi_series:
-    - KXFED                                                    # Fed 会后利率上限阶梯合约
-    - {series: KXCPIYOY, label: CPI 同比, max_events: 2}
-    - {series: KXCPICOREYOY, label: 核心 CPI 同比, max_events: 2}
-    - {series: KXU3, label: 失业率, max_events: 1}
-    - {series: KXGDP, label: 实际 GDP 增速（季调年化）, max_events: 2}
-    - {series: KXRECSSNBER, label: 美国衰退（NBER）, max_events: 2}
-  kalshi_max_events: 3            # 默认：最近 3 个事件（KXFED = 3 次议息会议）
-  polymarket_tags: [fed-rates]     # "economy" 太杂（含政治八卦），只留 Fed
+    - KXFED                                                    # Fed post-meeting upper-bound ladder contracts
+    - {series: KXCPIYOY, label: CPI YoY, max_events: 2}
+    - {series: KXCPICOREYOY, label: Core CPI YoY, max_events: 2}
+    - {series: KXU3, label: Unemployment rate, max_events: 1}
+    - {series: KXGDP, label: Real GDP growth (SAAR), max_events: 2}
+    - {series: KXRECSSNBER, label: US recession (NBER), max_events: 2}
+  kalshi_max_events: 3            # Default: the next 3 events (KXFED = 3 FOMC meetings)
+  polymarket_tags: [fed-rates]     # "economy" is too noisy (includes political gossip); keep Fed only
   polymarket_max_events: 10
   shift_hours: 24

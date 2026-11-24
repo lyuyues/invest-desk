@@ -1,7 +1,7 @@
 # DCF engine (vendored from the author's earlier valuation tool).
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# dcf_builder.py  美股单只股票 DCF 估值工具
+# dcf_builder.py  DCF valuation tool for a single US stock
 # A lightweight DCF builder that reproduces two valuation tables similar to your spreadsheets.
 # It uses SEC EDGAR companyfacts (XBRL) to pull Revenue/Net Income/CFO/CapEx, computes FCF and margins,
 # adopts analyst revenue growth via yfinance if available (optional), otherwise falls back to a 3Y CAGR.
@@ -15,17 +15,17 @@
 #   <YEAR>_dcf_<TICKER>_proj.csv       # projection + DCF table
 #   <YEAR>_dcf_<TICKER>_meta.json      # summary (fair value, assumptions)
 
-# 数据来源
+# Data sources
 # 	•	SEC EDGAR companyfacts API
-# 	•	先通过 https://www.sec.gov/files/company_tickers.json 找到公司对应的 CIK
-# 	•	再通过 https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json 拉取 XBRL 明细
-# 	•	可选：yfinance 分析师预测
-# 	•	若可用，使用 yfinance 的 earnings_forecasts 里的 revenue growth 作为未来增长率
-# 	•	否则回退到最近 3–5 年的 Revenue CAGR
-# 标准 10 年三阶段 DCF 模型
-# 	•	第 1 阶段：快速增长期（Years 1–5）
-# 	•	第 2 阶段：稳定期（Years 6–10）
-# 	•	第 3 阶段：永续增长（Perpetual）
+# 	•	First use https://www.sec.gov/files/company_tickers.json to find the company’s CIK
+# 	•	Then fetch XBRL details from https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json
+# 	•	Optional: yfinance analyst forecasts
+# 	•	If available, use revenue growth from yfinance’s earnings_forecasts as the future growth rate
+# 	•	Otherwise fall back to the last 3–5 years’ Revenue CAGR
+# Standard 10-year three-stage DCF model
+# 	•	Stage 1: high growth (Years 1–5)
+# 	•	Stage 2: stable (Years 6–10)
+# 	•	Stage 3: terminal growth (Perpetual)
 
 import argparse, json, math, re, sys
 from typing import Dict, Tuple, Optional
@@ -63,7 +63,7 @@ main `build_dcf` flow easier to follow.
 """
 
 # =======================================
-# 数据自定义区
+# Custom data section
 # =======================================
 import os as _os
 from radar.http import user_agent as _ua
@@ -321,7 +321,7 @@ PREDECESSOR_CIKS = {
 }
 
 
-# ticker -》 cik
+# ticker -> cik
 def fetch_cik(ticker: str) -> str:
     ticker_u = ticker.upper()
     if ticker_u in PREDECESSOR_CIKS:
@@ -665,8 +665,8 @@ def _sum_ifrs_tags_into_synthetic(facts: dict, source_tags: List[str], synthetic
 # companyfacts JSON -> pandas DataFrame for further processing
 def companyfacts_to_table(facts: dict) -> pd.DataFrame:
     """
-    将 SEC companyfacts JSON 展平为一个 pandas DataFrame。
-    每一行 = 某个 tag 在某个 unit 下的一条披露记录。
+    Flatten SEC companyfacts JSON into a pandas DataFrame.
+    Each row = one disclosure record of a tag in a unit.
     """
     cik = facts.get("cik")
     entity_name = facts.get("entityName")
@@ -674,13 +674,13 @@ def companyfacts_to_table(facts: dict) -> pd.DataFrame:
 
     rows = []
 
-    for taxonomy, tags in facts_block.items():          # 比如 "us-gaap", "dei"
-        for tag, info in tags.items():                  # 比如 "Revenues", "NetIncomeLoss"
+    for taxonomy, tags in facts_block.items():          # e.g. "us-gaap", "dei"
+        for tag, info in tags.items():                  # e.g. "Revenues", "NetIncomeLoss"
             label = info.get("label")
             units = info.get("units", {})
 
-            for unit, items in units.items():           # 比如 "USD", "shares"
-                for it in items:                        # 每条披露记录
+            for unit, items in units.items():           # e.g. "USD", "shares"
+                for it in items:                        # each disclosure record
                     rows.append({
                         "cik": cik,
                         "entityName": entity_name,
@@ -837,15 +837,15 @@ def extract_financials(facts: dict):
         capex_periods,
     )
 
-#  Helper Function: extract "年度年份" from single XBRL item
+#  Helper Function: extract "fiscal year" from single XBRL item
 def parse_fiscal_year_from_item(item: dict) -> Optional[int]:
     """
-    从单条 XBRL 披露记录里，尽量安全地解析出“年度年份”。
-    只在我们确认它是“年度数据”的时候返回 year（int），否则返回 None。
-    判断顺序：
-      1) frame 是年度形式：CY2022 / FY2022 -> 直接取 2022
-      2) 若有 start / end 且 is_true_annual_period(start, end) 为 True，则用 end.year
-      3) 最后兜底用 fy
+    Parse, as safely as possible, from a single XBRL disclosure record the“fiscal year”.
+    Return year (int) only when we are sure it is“annual data”; otherwise return None.
+    Order of checks:
+      1) frame is annual: CY2022 / FY2022 -> take 2022 directly
+      2) if start / end exist and is_true_annual_period(start, end) is True, use end.year
+      3) finally fall back to fy
     """
     from pandas import to_datetime
     import re
@@ -855,44 +855,44 @@ def parse_fiscal_year_from_item(item: dict) -> Optional[int]:
     end = item.get("end")
     fy = item.get("fy")
 
-    # 1) 优先：frame 是严格的年度形式 (CY2022 / FY2022)
+    # 1) Preferred: frame is strictly annual (CY2022 / FY2022)
     if frame:
         s = str(frame)
         m = re.fullmatch(r"(CY|FY)(19|20)\d{2}", s)
         if m:
-            # 例如 CY2022 -> 取最后 4 位
+            # e.g. CY2022 -> take the last 4 digits
             return int(s[-4:])
 
-        # frame 存在但不是年度形式（如 CY2022Q1）→ 明确是季度，直接拒绝
-        # 不再 fallback 到 fy，防止季度数据冒充年度
+        # frame exists but is not annual (e.g. CY2022Q1)→ clearly quarterly, reject
+        # no fallback to fy, so quarterly data cannot pass as annual
         return None
 
-    # 2) 次优：有 start / end，并且通过 is_true_annual_period 判定为"真·年度"
+    # 2) Next best: start / end exist and pass is_true_annual_period as"truly annual"
     if start and end:
         try:
             if is_true_annual_period(start, end):
                 return int(to_datetime(end).year)
         except Exception:
             pass
-        # start/end 存在但不是年度区间 → 拒绝，不 fallback 到 fy
+        # start/end exist but are not an annual period → reject, no fallback to fy
         return None
 
-    # 3) 最后兜底：没有 frame 也没有 start/end 时，退回 fy
+    # 3) Last resort: with neither frame nor start/end, fall back to fy
     if fy is not None:
         try:
             return int(fy)
         except Exception:
             pass
 
-    # 实在不确定，就返回 None，调用方自己丢弃这一条
+    # If still unsure, return None and let the caller drop this record
     return None
 
 #  Helper Function: extract entities/series from multiple possible tags 
 def _series_from_tags(facts: dict, tags: List[str], unit: str = "USD") -> Tuple[pd.Series, Optional[str], dict]:
     import re
 
-    all_series = [] # 记录所有可用的 series
-    tag_names = [] # 记录对应的 tag 名称
+    all_series = [] # all available series
+    tag_names = [] # the corresponding tag names
     # per-tag/year periods: { tag: { year: (start,end) }}
     per_tag_periods = {}
     us_gaap = facts.get("facts", {}).get("us-gaap", {})
@@ -900,11 +900,11 @@ def _series_from_tags(facts: dict, tags: List[str], unit: str = "USD") -> Tuple[
     yfinance_ns = facts.get("facts", {}).get("yfinance", {})  # synthetic fallback, see fetch_companyfacts
 
     for tag in tags:
-        tag_info = us_gaap.get(tag) or ifrs_full.get(tag) or yfinance_ns.get(tag) # 某个 tag 的信息
+        tag_info = us_gaap.get(tag) or ifrs_full.get(tag) or yfinance_ns.get(tag) # info for one tag
         if not tag_info:
             continue
 
-        units = tag_info.get("units", {}) # 各个单位下的披露数据
+        units = tag_info.get("units", {}) # disclosures under each unit
         if unit not in units:
             continue
 
@@ -916,18 +916,18 @@ def _series_from_tags(facts: dict, tags: List[str], unit: str = "USD") -> Tuple[
             start = item.get("start")
             end = item.get("end")
 
-            # 只要年报的 Form（含修正版 /A）
+            # Only annual-report forms (including amended /A)
             if form not in ("10-K", "20-F", "40-F", "10-K/A", "20-F/A", "40-F/A"):
                 continue
 
-            # fp 一般是 FY / CY / Q1 等，这里可以保守一点：
+            # fp is usually FY / CY / Q1 etc.; be conservative here:
             if fp not in ("FY", "CY", ""):
                 continue
 
-            # 统一用 helper 来解析“年度年份”
+            # Use the helper to parse the“fiscal year”
             year = parse_fiscal_year_from_item(item)
             if year is None:
-                # 这条记录要么是季度，要么期间不完整，就当作不是年度数据丢掉
+                # This record is either quarterly or has an incomplete period; drop it as non-annual
                 continue
 
             try:
@@ -1203,36 +1203,36 @@ def extract_quarterly_financials(facts: dict) -> dict:
 #  Calculation layer: pure-ish functions
 # =======================================
 
-# 1. 计算净利率和 FCF/净利润比例
-# 去掉 “净利润几乎为 0” 的年份（否则比值会爆炸）。
-# 把 FCF/NI 限制在 [-150%, +150%] 之间，可以以后自己调这个区间。 《〈《〈《〈《〈
+# 1. Compute net margin and the FCF/net income ratio
+# Drop “net income nearly 0”  years (otherwise the ratio blows up).
+# Clamp FCF/NI to [-150%, +150%]; this range can be tuned later.
 def compute_margins(
     revenue: pd.Series,
     net_income: pd.Series,
     fcf: pd.Series,
     avg_years: int = 5,
 ):
-    # ---- 1. 净利率: Net Profit Margin = Net Income / Revenue ----
+    # ---- 1. Net margin: Net Profit Margin = Net Income / Revenue ----
     common_ni = revenue.index.intersection(net_income.index)
     net_margin = (net_income[common_ni] / revenue[common_ni]).rename("NetMargin")
 
-    # ---- 2. FCF to Profit margin = FCF / Net Income 比例，做一些清洗 + 限制 ----
+    # ---- 2. FCF to Profit margin = FCF / Net Income ratio, with some cleaning + clamping ----
     common_fcf = fcf.index.intersection(net_income.index)
 
     ni_for_ratio = net_income[common_fcf].copy()
     fcf_for_ratio = fcf[common_fcf].copy()
 
-    # 2.1 去掉 “净利润绝对值太小” 的年份，防止 1 块钱净利润 / 巨大 FCF 变成几千倍
-    # 规则：|Net Income| < 5% * |Revenue| 或者 太接近 0 的年份直接丢掉 
+    # 2.1 Drop “net income too small in absolute terms”  years, so that $1 of net income / huge FCF does not become a ratio in the thousands
+    # Rule:|Net Income| < 5% * |Revenue| or too close to 0: drop the year 
     rev_for_ratio = revenue.reindex(common_fcf)
     tiny_ni_mask = (ni_for_ratio.abs() < (0.05 * rev_for_ratio.abs())) | (ni_for_ratio.abs() < 1e-6)
     ni_for_ratio[tiny_ni_mask] = np.nan
     fcf_for_ratio[tiny_ni_mask] = np.nan
 
-    # 2.2 原始比例
+    # 2.2 Raw ratio
     raw_ratio = (fcf_for_ratio / ni_for_ratio)
 
-    # 2.3 把极端值裁剪在一个合理区间内，比如 -1.5 ~ 1.5（即 -150% ~ 150%《〈《〈《〈《〈
+    # 2.3 Clip extreme values to a reasonable range, e.g. -1.5 ~ 1.5 (i.e. -150% ~ 150%
     fcf_to_ni = raw_ratio.clip(lower=-1.5, upper=1.5).rename("FCF_to_NI")
 
     def last_n_avg(s: pd.Series, n: int) -> float:
@@ -1244,10 +1244,10 @@ def compute_margins(
 
     return net_margin, fcf_to_ni, avg_net_margin, avg_fcf_to_ni
 
-# 2. 计算 FCF Margin
-#  优先级：
-#    1）用最近 avg_years 年的 (FCF / Revenue) 清洗平均值
-#    2）否则用 avg_net_margin * avg_fcf_to_
+# 2. Compute FCF Margin
+#  Priority:
+#    1) Use the cleaned average (FCF / Revenue) over the last avg_years years
+#    2) Otherwise use avg_net_margin * avg_fcf_to_
 def compute_fcf_margin(
     revenue: pd.Series,
     fcf: pd.Series,
@@ -1281,13 +1281,13 @@ def compute_fcf_margin(
     fcf_margin = max(min(fcf_margin, 0.50), -0.10)
     return fcf_margin
 
-# 3a. 获取 analyst consensus revenue estimates（绝对值）
+# 3a. Get analyst consensus revenue estimates (absolute values)
 def fetch_analyst_revenue(ticker: str) -> List[Tuple[int, float]]:
-    """从 yfinance 获取 analyst consensus revenue estimates。
+    """Get analyst consensus revenue estimates from yfinance.
 
-    返回 [(year_offset, revenue_value), ...] 按年排序。
-    year_offset: 1 = 下一个财年, 2 = 再下一个。
-    异常时返回空 list。
+    Returns [(year_offset, revenue_value), ...] sorted by year.
+    year_offset: 1 = next fiscal year, 2 = the one after.
+    Returns an empty list on error.
     """
     try:
         import yfinance as yf
@@ -1326,13 +1326,13 @@ def fetch_analyst_revenue(ticker: str) -> List[Tuple[int, float]]:
         return []
 
 
-# 3b. 采用分析师预测或历史 CAGR 作为收入增长率
+# 3b. Use analyst estimates or historical CAGR as the revenue growth rate
 def adopt_growth_rate(ticker: str, revenue: pd.Series) -> Tuple[float, str]:
-    """返回 (growth_rate, source)。source 为 'analyst' / 'cagr' / 'default'。"""
+    """Returns (growth_rate, source). source is 'analyst' / 'cagr' / 'default'."""
     growth = None
     source = "default"
 
-    # 1）尝试 yfinance 分析师预测
+    # 1) Try yfinance analyst estimates
     try:
         import yfinance as yf
         t = yf.Ticker(ticker)
@@ -1348,7 +1348,7 @@ def adopt_growth_rate(ticker: str, revenue: pd.Series) -> Tuple[float, str]:
     except Exception:
         growth = None
 
-    # 2）fallback：最近 3–5 年 Revenue CAGR
+    # 2) fallback: Revenue CAGR over the last 3–5 years
     if growth is None:
         rev = revenue.dropna().tail(5)
         if len(rev) >= 2 and rev.iloc[0] > 0:
@@ -1356,14 +1356,14 @@ def adopt_growth_rate(ticker: str, revenue: pd.Series) -> Tuple[float, str]:
             growth = (rev.iloc[-1] / rev.iloc[0]) ** (1 / n) - 1.0
             source = "cagr"
 
-    # 3）最后兜底一个保守值
+    # 3) Last resort: a conservative default
     if growth is None:
         growth = 0.05
         source = "default"
 
-    # 4）安全限制：防止极端值
-    #    分析师预测：信任度高，只做宽松 clip（-20% ~ 50%）
-    #    CAGR/默认值：保守 clip（-10% ~ 25%）
+    # 4) Safety limits: guard against extreme values
+    #    Analyst estimates: high trust, only a loose clip (-20% ~ 50%)
+    #    CAGR/default: conservative clip (-10% ~ 25%)
     if source == "analyst":
         growth = max(min(growth, 0.50), -0.20)
     else:
@@ -1372,7 +1372,7 @@ def adopt_growth_rate(ticker: str, revenue: pd.Series) -> Tuple[float, str]:
     return growth, source
 
 # ============================
-#  三阶段增长路径：10 年 + 永续 （根据行业估计10年的growth rate）
+#  Three-stage growth path: 10 years + perpetual (10-year growth rate estimated by sector)
 # ============================
 def build_growth_curve(
     ticker: str,
@@ -1383,18 +1383,18 @@ def build_growth_curve(
     sector: Optional[str] = None,
 ) -> Tuple[list, float]:
     """
-    返回：
-        growth_path: 长度 10 的 list, 每一年对应的收入增长率
-        terminal_g:  永续增长率（会结合 sector 范围修正）
-    逻辑：
-        1. 先用 adopt_growth_rate 得到一个"基准增长率" base_g
-        2. 用 SIC → sector, 从 SECTOR_GROWTH 里取 fast/stable/terminal 区间
-        3. 把 base_g 限制在 fast 区间，用作前 5 年目标
-        4. 中间 5 年向 stable 区间收敛
-        5. terminal_g 结合参数 perpetual_growth 和 sector 的 terminal 区间
+    Returns:
+        growth_path: list of length 10, the revenue growth rate for each year
+        terminal_g:  perpetual growth rate (adjusted with the sector range)
+    Logic:
+        1. First use adopt_growth_rate to get a"base growth rate" base_g
+        2. Map SIC → sector, take from SECTOR_GROWTH the fast/stable/terminal ranges
+        3. Clamp base_g to the fast range and use it as the target for the first 5 years
+        4. The middle 5 years converge toward the stable range
+        5. terminal_g combines the parameter perpetual_growth with the sector’s terminal range
     """
 
-    # 1) 行业识别：优先用外部传入的 sector，否则自动推断
+    # 1) Sector: prefer the sector passed in, otherwise infer it automatically
     if not sector:
         sector = infer_sector_from_facts(facts, ticker)
     ranges = SECTOR_GROWTH.get(sector, SECTOR_GROWTH["CONSUMER"])
@@ -1402,26 +1402,26 @@ def build_growth_curve(
     stable_low, stable_high = ranges["stable"]
     term_low, term_high = ranges["terminal"]
 
-    # 2) 基准增长率（分析师预测 or 历史 CAGR）
+    # 2) Base growth rate (analyst estimates or historical CAGR)
     base_g, growth_source = adopt_growth_rate(ticker, revenue)
     pprint(f"Base growth rate adopted: {base_g:.2%} (source: {growth_source}) for sector {sector}")
 
-    # fast 阶段目标增长率：
-    #   - 有分析师预测时：直接用分析师增长率作为第一年，仅做宽松 clip
-    #   - 无分析师预测时：clip 到行业 fast 区间
+    # fast-stage target growth rate:
+    #   - With analyst estimates: use the analyst growth rate directly as year 1, with only a loose clip
+    #   - Without analyst estimates: clip to the sector’s fast range
     if growth_source == "analyst":
-        # 分析师预测代表近 1-2 年预期，直接作为 fast 阶段起点
-        # 只用行业上限做安全 cap，不用下限抬高
-        g_fast = min(base_g, max(fast_high, base_g * 0.8))  # 允许略超行业上限
-        g_fast = max(g_fast, fast_low)  # 但不低于行业下限
+        # Analyst estimates reflect the next 1-2 years, so use them directly as the start of the fast stage
+        # Only use the sector upper bound as a safety cap; don’t raise it with the lower bound
+        g_fast = min(base_g, max(fast_high, base_g * 0.8))  # allow slightly exceeding the sector upper bound
+        g_fast = max(g_fast, fast_low)  # but not below the sector lower bound
         pprint(f"Fast stage growth rate set to: {g_fast:.2%} (analyst-driven, sector range {fast_low:.2%} - {fast_high:.2%})")
     else:
         g_fast = max(min(base_g, fast_high), fast_low)
         pprint(f"Fast stage growth rate set to: {g_fast:.2%} (range {fast_low:.2%} - {fast_high:.2%})")
 
-    # stable 阶段目标增长率：
-    #   - 高增长公司（fast > stable 上限的 2 倍）：用 stable 上限
-    #   - 其他：用 stable 区间中值
+    # stable-stage target growth rate:
+    #   - High-growth companies (fast > 2x the stable upper bound): use the stable upper bound
+    #   - Others: use the midpoint of the stable range
     if g_fast > stable_high * 2:
         g_stable = stable_high
     else:
@@ -1429,39 +1429,39 @@ def build_growth_curve(
     pprint(f"Stable stage growth rate set to: {g_stable:.2%} (range {stable_low:.2%} - {stable_high:.2%})")
 
 
-    # terminal growth：结合参数 perpetual_growth 和行业区间
+    # terminal growth: combine the parameter perpetual_growth with the sector range
     g_terminal_raw = perpetual_growth
     g_terminal = max(min(g_terminal_raw, term_high), term_low)
 
-    # 3) 构造 10 年增长路径：
-    #    Years 1–5: 从 g_fast 逐步过渡到 g_stable
-    #    Years 6–10: 从 g_stable 逐步过渡到 g_terminal
+    # 3) Build the 10-year growth path:
+    #    Years 1–5: from g_fast gradually moving to g_stable
+    #    Years 6–10: from g_stable gradually moving to g_terminal
     g1_5 = list(np.linspace(g_fast, g_stable, 5))
     g6_10 = list(np.linspace(g_stable, g_terminal, 5))
 
-    growth_path = g1_5 + g6_10  # 共 10 个增长率
+    growth_path = g1_5 + g6_10  # 10 growth rates in total
     pprint("Growth path:")
     pprint(growth_path)
     return growth_path, g_terminal
 
 # ============================
-#  两阶段增长路径：过去五年（avg. profit margin & avg. fcf profit margin ）来预测未来三年 
+#  Two-stage growth path: use the past five years (avg. profit margin & avg. fcf profit margin) to project the next three years 
 # ============================
 
 # =======================================
-#  主流程：构建 DCF 估值 （贴现现金流）
-#  DCF（Discounted Cash Flow，贴现现金流）是一种估值方法：
-# 把公司未来可获得的现金流折现到现在，把它们加总，得到公司当前的价值。
-# 直观上就是“未来的钱值现在多少钱”。
-# 折现未来若干年的自由现金流之和，再加上终值（terminal value）的现值：
+#  Main flow: build the DCF valuation (discounted cash flow)
+#  DCF (Discounted Cash Flow) is a valuation method:
+# discount the cash flows the company will generate in the future back to today and add them up to get the company’s current value.
+# Intuitively, it answers“what is future money worth today”.
+# the sum of discounted free cash flows over the coming years, plus the present value of the terminal value:
 #========================================
 def build_dcf(
     ticker: str,
     required_return: float = 0.07,
     perpetual_growth: float = 0.025,
     avg_years: int = 5,
-    projection_years: int = 10,   # 👈 默认做 10 年
-    sector: Optional[str] = None, # 👈 新增：可手动指定 sector（TECH / CONSUMER / ...）
+    projection_years: int = 10,   # 👈 10 years by default
+    sector: Optional[str] = None, # 👈 New: optionally specify the sector manually (TECH / CONSUMER / ...)
     save_raw_json: bool = False,
     save_raw_csv: bool = False,
 ):
@@ -1503,12 +1503,12 @@ def build_dcf(
     accounts_receivable, ar_tag, _ = all_data["accounts_receivable"]
     dividends_per_share, dps_tag, _ = all_data["dividends_per_share"]
 
-    # 得到net margin & FCF to margin 历史值
+    # Get historical net margin & FCF margin values
     net_margin, fcf_to_ni, avg_net_margin, avg_fcf_to_ni = compute_margins(
         revenue, net_income, fcf, avg_years
     )
 
-    # 流通股数
+    # Shares outstanding
     shares_series = all_data["shares_outstanding"][0]
     if shares_series is not None and not shares_series.empty:
         shares = float(shares_series.iloc[-1])
@@ -1548,7 +1548,7 @@ def build_dcf(
         except Exception:
             pass
 
-    # ---------- 历史表 ----------
+    # ---------- Historical table ----------
     years = sorted(set(revenue.index) | set(net_income.index) | set(fcf.index))
     years = [int(y) for y in years if isinstance(y, (int, np.integer))]
 
@@ -1684,14 +1684,14 @@ def build_dcf(
     hist_df = hist_df[sorted(hist_df.columns)]
     hist_df.index.name = None
 
-    # ---------- 预测期（10 年） ----------
+    # ---------- Projection period (10 years) ----------
     if revenue.empty:
         raise ValueError("No revenue data available for this ticker")
 
     last_year = int(revenue.index.max())
     base_rev = float(revenue.loc[last_year])
 
-    # 三阶段增长路径（10 年）+ 永续增速（用作 fallback）
+    # Three-stage growth path (10 years) + perpetual growth (used as fallback)
     growth_path, terminal_g = build_growth_curve(
         ticker=ticker,
         facts=facts,
@@ -1701,10 +1701,10 @@ def build_dcf(
         sector=sector,
     )
 
-    # 确保 projection_years 至少 10
+    # Ensure projection_years is at least 10
     projection_years = max(projection_years, len(growth_path))
 
-    # 尝试获取 analyst consensus revenue estimates
+    # Try to fetch analyst consensus revenue estimates
     analyst_rev = fetch_analyst_revenue(ticker)
     n_analyst = 0
 
@@ -1716,17 +1716,17 @@ def build_dcf(
         n_analyst = len(analyst_rev)
         pprint(f"Using {n_analyst} analyst revenue estimate(s) for years 1-{n_analyst}")
 
-        # 前 N 年用 analyst 数据
+        # Use analyst data for the first N years
         for _, rev_val in analyst_rev:
             proj_rev.append(rev_val)
 
-        # 计算最后一个 analyst 年的隐含增长率
+        # Compute the implied growth rate of the last analyst year
         if n_analyst >= 2:
             last_analyst_growth = (analyst_rev[-1][1] / analyst_rev[-2][1]) - 1.0
         else:
             last_analyst_growth = (analyst_rev[0][1] / base_rev) - 1.0
 
-        # 剩余年份：从 last_analyst_growth 线性 taper 到 terminal_g
+        # Remaining years: from last_analyst_growth, linearly taper to terminal_g
         remaining = projection_years - n_analyst
         if remaining > 0:
             taper = list(np.linspace(last_analyst_growth, terminal_g, remaining))
@@ -1735,7 +1735,7 @@ def build_dcf(
                 cur_rev *= (1.0 + g)
                 proj_rev.append(cur_rev)
 
-        # 重建 growth_path 用于输出
+        # Rebuild growth_path for output
         growth_path = []
         growth_path.append((analyst_rev[0][1] / base_rev) - 1.0)  # year 1
         for i in range(1, n_analyst):
@@ -1745,14 +1745,14 @@ def build_dcf(
 
         pprint(f"Analyst-driven growth path: {[f'{g:.1%}' for g in growth_path]}")
     else:
-        # --- Fallback: 原始三阶段逻辑 ---
+        # --- Fallback: original three-stage logic ---
         cur_rev = base_rev
         for i in range(projection_years):
             g = growth_path[i] if i < len(growth_path) else growth_path[-1]
             cur_rev *= (1.0 + g)
             proj_rev.append(cur_rev)
 
-    # 计算用于投影的 FCF margin（提取成独立函数以便测试/覆盖）
+    # Compute the FCF margin used for projection (a separate function so it can be tested/overridden)
     fcf_margin = compute_fcf_margin(revenue, fcf, avg_net_margin, avg_fcf_to_ni, avg_years)
     proj_fcf = [r * fcf_margin for r in proj_rev]
 
@@ -1760,7 +1760,7 @@ def build_dcf(
 
 
 
-    # 折现 + 终值（在第 projection_years 年之后）
+    # Discounting + terminal value (after year projection_years)
     dfs = [(1.0 + required_return) ** i for i in range(1, projection_years + 1)]
     pv_fcfs = [proj_fcf[i] / dfs[i] for i in range(projection_years)]
 
@@ -1771,14 +1771,14 @@ def build_dcf(
     todays_value = sum(pv_fcfs) + pv_terminal
     fair_value = todays_value / shares if (shares is not None and shares > 0) else np.nan
 
-    # ---------- 预测表 ----------
+    # ---------- Projection table ----------
     # For projections, use the tag from the most recent year as the reference
     latest_rev_tag = pick_tag(revenue_tag, last_year)
     latest_cfo_tag = pick_tag(cfo_tag, last_year)
     latest_capex_tag = pick_tag(capex_tag, last_year)
     base_period = revenue_periods.get(last_year, (None, None))
 
-    # 标记每年的预测来源
+    # Mark the projection source for each year
     estimate_source = []
     for i in range(projection_years):
         if i < n_analyst:
@@ -1801,7 +1801,7 @@ def build_dcf(
         "Base End": [base_period[1]] * len(proj_years),
     })
 
-    # ---------- 汇总元数据 ----------
+    # ---------- Summary metadata ----------
     units = facts.get("facts", {}).get("us-gaap", {}).get("Revenues", {}).get("units", {})
     currency = next(iter(units.keys()), "N/A")
 
@@ -2283,10 +2283,10 @@ def main():
     ap.add_argument("--perp", type=float, default=0.025)
     ap.add_argument("--years", type=int, default=4)
     ap.add_argument("--avg-years", type=int, default=5)
-    ap.add_argument("--no-raw-json", action="store_true", help="不保存原始 JSON")
-    ap.add_argument("--no-raw-csv", action="store_true", help="不保存原始 CSV")
+    ap.add_argument("--no-raw-json", action="store_true", help="Don’t save raw JSON")
+    ap.add_argument("--no-raw-csv", action="store_true", help="Don’t save raw CSV")
     ap.add_argument("--sector", type=str, default=None,
-                help="手动指定行业 (TECH / CONSUMER / BANK / INSURANCE / ENERGY / PHARMA)。若不指定则自动根据 SIC 判定")
+                help="Manually specify the sector (TECH / CONSUMER / BANK / INSURANCE / ENERGY / PHARMA). If not given, inferred automatically from SIC")
     args = ap.parse_args()
 
     ticker_upper = args.ticker.upper()
@@ -2297,11 +2297,11 @@ def main():
     base = os.path.join(out_dir, f"{currYear}_dcf_{ticker_upper}")
     # --- Sector inference ---
     if args.sector:  
-        # 用户手动指定
+        # Specified manually by the user
         sector = args.sector.upper()
         sector_source = "manual"
     else:
-        # 自动从 SEC facts 推断
+        # Infer automatically from SEC facts
         cik = fetch_cik(args.ticker)
         facts = fetch_companyfacts(cik, ticker=args.ticker)
         sector = infer_sector_from_facts(facts, args.ticker)
@@ -2376,10 +2376,10 @@ def main():
 #  Test / direct function call entry point
 # ============================
 
-# Entry 2: 直接在代码里调用，不用命令行参数
+# Entry 2: call directly from code, no command-line arguments
 import json
 import pandas as pd
-#   直接调用的入口函数
+#   Entry function for direct calls
 def run_dcf_once(
     ticker: str = "GOOGL",
     required_return: float = 0.07,
@@ -2392,7 +2392,7 @@ def run_dcf_once(
     sector_source: Optional[str] = None,
 ):
     """
-    直接在代码里调用的入口，不再用命令行参数。
+    Entry point for calling directly from code, without command-line arguments.
     """
     ticker_upper = ticker.upper()
     curr_year = pd.Timestamp.now().year
@@ -2411,7 +2411,7 @@ def run_dcf_once(
         sector=sector,
     )
 
-    # 保存 DCF 结果
+    # Save DCF results
     hist.to_csv(base + "_10K.csv", index=True)
     proj.to_csv(base + "_proj.csv", index=True)
     with open(base + "_meta.json", "w") as f:
@@ -2440,14 +2440,14 @@ def run_dcf_once(
     quarterly_df.to_csv(quarterly_path, index=True)
     print(f"[Saved] {quarterly_path}")
 
-    # --- 保存原始 companyfacts JSON ---
+    # --- Save raw companyfacts JSON ---
     if save_raw_json:
         fname_json = base + "_raw.json"
         with open(fname_json, "w") as f:
             json.dump(facts, f, indent=2)
         print(f"[Saved] {fname_json}")
 
-    # --- 保存原始 CSV ---
+    # --- Save raw CSV ---
     if save_raw_csv:
         raw_df = companyfacts_to_table(facts)
         fname_csv = base + "_raw.csv"

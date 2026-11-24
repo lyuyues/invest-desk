@@ -90,7 +90,7 @@ def live_quote(ticker: str, ticker_factory=None) -> float:
     except Exception:
         px = 0.0
     if not px or px != px or px <= 0:
-        raise ValueError(f"找不到 {ticker} 的报价——代码写对了吗？")
+        raise ValueError(f"Can’t find a quote for {ticker}. Is the ticker right?")
     _qcache[ticker] = (_time.time(), px)
     return px
 
@@ -117,7 +117,7 @@ def open_account(conn, name: str, capital: float, cost: float, now: datetime, qu
     except Exception:
         bench = None
     cur = conn.execute("INSERT INTO trade_accounts (name, capital, cash, cost, created, bench_px) VALUES (?,?,?,?,?,?)",
-                       (name.strip()[:40] or "我的模拟账户", capital, capital, cost, _iso(now), bench))
+                       (name.strip()[:40] or "My paper account", capital, capital, cost, _iso(now), bench))
     conn.commit()
     return cur.lastrowid
 
@@ -207,13 +207,13 @@ def _fill(conn, o, px: float, when: datetime, note: str = "") -> bool:
         need = px * o["qty"] + fee
         if need > a["cash"] + 1e-6:
             conn.execute("UPDATE trade_orders SET status='rejected', msg=? WHERE id=?",
-                         (f"现金不足：需要 {need:,.2f}，可用 {a['cash']:,.2f}", o["id"]))
+                         (f"Insufficient cash: need {need:,.2f}, available {a['cash']:,.2f}", o["id"]))
             return False
         cash = a["cash"] - need
     else:
         if o["qty"] > held + 1e-9:
             conn.execute("UPDATE trade_orders SET status='rejected', msg=? WHERE id=?",
-                         (f"持仓不足：要卖 {o['qty']:g}，只有 {held:g}", o["id"]))
+                         (f"Not enough shares: trying to sell {o['qty']:g}, only have {held:g}", o["id"]))
             return False
         cash = a["cash"] + px * o["qty"] - fee
     from radar import options   # short puts reserve cash; short calls lock shares
@@ -232,30 +232,30 @@ def place(conn, aid: int, f: dict, now: datetime, quote=live_quote) -> int:
     """f: ticker, side, kind, qty, px, reason, plan_stop, plan_target. Returns order id (filled, open or rejected)."""
     a = account(conn, aid)
     if not a or not a["active"]:
-        raise OrderError("账户不存在或已关闭")
+        raise OrderError("Account does not exist or is closed")
     ticker, side, kind = f["ticker"].upper().strip(), f["side"], f["kind"]
     if side not in ("buy", "sell") or kind not in ("market", "limit", "stop"):
-        raise OrderError("订单类型不对")
+        raise OrderError("Invalid order type")
     if kind == "stop" and side == "buy":
-        raise OrderError("止损单只能用来卖出")
+        raise OrderError("Stop orders can only be used to sell")
     reason = (f.get("reason") or "").strip()
     if not reason:
-        raise OrderError("写一句为什么要做这笔交易——这是学习的关键")
+        raise OrderError("Write one sentence on why you are making this trade. This is the key to learning")
     try:
         qty = float(f["qty"])
         px = float(f["px"]) if f.get("px") not in (None, "") else None
         stop = float(f["plan_stop"]) if f.get("plan_stop") not in (None, "") else None
         target = float(f["plan_target"]) if f.get("plan_target") not in (None, "") else None
     except (TypeError, ValueError):
-        raise OrderError("数量 / 价格需要是数字")
+        raise OrderError("Quantity / price must be numbers")
     if qty <= 0 or qty != int(qty):
-        raise OrderError("数量要是正整数")
+        raise OrderError("Quantity must be a positive integer")
     if kind != "market" and not (px and px > 0):
-        raise OrderError("限价 / 止损单需要价格")
+        raise OrderError("Limit / stop orders need a price")
     if side == "sell":
         held = book(conn, aid)[0].get(ticker, {}).get("qty", 0)
         if held <= 0:
-            raise OrderError(f"你没有 {ticker} 的持仓，不能卖出（只做多，不能卖空）。想卖 put 请点「期权 →」")
+            raise OrderError(f"You don’t hold {ticker}, so you can’t sell it (long only, no short selling). To sell a put, click “Options →”")
     try:
         last = quote(ticker)   # also validates the ticker
     except Exception as e:
@@ -264,7 +264,7 @@ def place(conn, aid: int, f: dict, now: datetime, quote=live_quote) -> int:
         "INSERT INTO trade_orders (account_id, created, ticker, side, kind, qty, px, status, reason, plan_stop, plan_target) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?)", (aid, _iso(now), ticker, side, kind, qty, px, "open", reason[:1000], stop, target))
     o = conn.execute("SELECT * FROM trade_orders WHERE id=?", (cur.lastrowid,)).fetchone()
-    note = "" if market_open(now) else "非交易时段：按最近成交价成交"
+    note = "" if market_open(now) else "Outside market hours: filled at the last trade price"
     marketable = (kind == "market" or (kind == "limit" and (last <= px if side == "buy" else last >= px))
                   or (kind == "stop" and last <= px))
     if marketable:
@@ -281,10 +281,10 @@ def transfer_in(conn, aid: int, ticker: str, qty: float, cost: float | None, now
     position's P&L display and journal; default = current price."""
     a = account(conn, aid)
     if not a or not a["active"]:
-        raise OrderError("账户不存在或已关闭")
+        raise OrderError("Account does not exist or is closed")
     ticker = ticker.upper().strip()
     if qty <= 0 or qty != int(qty):
-        raise OrderError("股数要是正整数")
+        raise OrderError("Shares must be a positive integer")
     try:
         px = quote(ticker)
     except Exception as e:
@@ -304,12 +304,12 @@ def transfer_in(conn, aid: int, ticker: str, qty: float, cost: float | None, now
     cur = conn.execute(
         "INSERT INTO trade_orders (account_id, created, ticker, side, kind, qty, px, status, filled_at, fill_px, fee, reason, msg) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (aid, _iso(now), ticker, "buy", "market", qty, px, "filled", _iso(now), cost, 0.0,
-                                             TRANSFER, f"转入时现价 {px:.2f}"))
+                                             TRANSFER, f"Transfer-in Price {px:.2f}"))
     conn.commit()
     return cur.lastrowid
 
 
-TRANSFER = "转入已有持仓"
+TRANSFER = "Transferred existing position"
 
 
 def fix_transfer(conn, aid: int, oid: int, qty: float, now: datetime, quote=live_quote) -> None:
@@ -317,18 +317,18 @@ def fix_transfer(conn, aid: int, oid: int, qty: float, now: datetime, quote=live
     o = conn.execute("SELECT * FROM trade_orders WHERE id=? AND account_id=? AND reason=? AND status='filled'",
                      (oid, aid, TRANSFER)).fetchone()
     if not o:
-        raise OrderError("找不到这笔转入")
+        raise OrderError("Can’t find this transfer")
     if qty < 0 or qty != int(qty):
-        raise OrderError("股数要是 0 或正整数")
+        raise OrderError("Shares must be 0 or a positive integer")
     px = o["px"]
     if px is None:
         import re
-        m = re.search(r"现价 ([0-9.]+)", o["msg"] or "")
+        m = re.search(r"Price ([0-9.]+)", o["msg"] or "")
         px = float(m.group(1)) if m else o["fill_px"]
     a = account(conn, aid)
     delta = (qty - o["qty"]) * px
     if a["capital"] + delta <= 0:
-        raise OrderError("改完后本金会变成负数")
+        raise OrderError("After this change the principal would be negative")
     if qty == 0:
         conn.execute("DELETE FROM trade_orders WHERE id=?", (oid,))
     else:
@@ -339,7 +339,7 @@ def fix_transfer(conn, aid: int, oid: int, qty: float, now: datetime, quote=live
         run += f["qty"] if f["side"] == "buy" else -f["qty"]
         oversold = oversold or run < -1e-9
     from radar import options
-    err = "之后已经卖出的股数比改后的还多" if oversold else options._check(conn, aid, a["cash"])
+    err = "More shares have already been sold since then than the new amount" if oversold else options._check(conn, aid, a["cash"])
     if err:
         conn.rollback()
         raise OrderError(err)
@@ -359,11 +359,11 @@ def set_plan(conn, aid: int, ticker: str, stop: float | None, target: float | No
     pos, _ = book(conn, aid)
     p = pos.get(ticker.upper().strip())
     if not p:
-        raise OrderError(f"没有 {ticker} 的持仓")
+        raise OrderError(f"No position in {ticker}")
     if stop is not None and stop <= 0 or target is not None and target <= 0:
-        raise OrderError("价格要大于 0")
+        raise OrderError("Price must be greater than 0")
     if stop is not None and target is not None and stop >= target:
-        raise OrderError("止损价要低于目标价")
+        raise OrderError("Stop price must be below the target price")
     conn.execute("UPDATE trade_orders SET plan_stop=?, plan_target=? WHERE id=?", (stop, target, p["orders"][0]["id"]))
     conn.commit()
 
@@ -411,7 +411,7 @@ def run_job(conn, now: datetime, bars=daily_bars, quote=live_quote) -> str:
                 px = match_bar(o, bar)
                 if px is not None:
                     when = datetime.combine(bar["date"], time(16, 0), NY)
-                    filled += _fill(conn, o, px, when, f"{bar['date']} 日线撮合")
+                    filled += _fill(conn, o, px, when, f"{bar['date']} daily-bar fill")
                     break
     conn.commit()
     snaps = 0

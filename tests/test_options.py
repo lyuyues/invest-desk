@@ -79,7 +79,7 @@ def test_naked_call_rejected_covered_ok_and_shares_locked(conn):
     assert pos[CALL]["qty"] == -1
     stock(conn, aid, "sell", 50)                                      # locked by the short call
     r = conn.execute("SELECT status, msg FROM trade_orders ORDER BY id DESC").fetchone()
-    assert r["status"] == "rejected" and "锁定" in r["msg"]
+    assert r["status"] == "rejected" and "locked" in r["msg"]
     oid = options.place(conn, aid, o(side="buy", qty="3"), OPEN, q=oq)   # can't flip short → long in one order
     assert conn.execute("SELECT status FROM opt_orders WHERE id=?", (oid,)).fetchone()[0] == "rejected"
 
@@ -177,12 +177,12 @@ def test_option_pages(tmp_path, monkeypatch):
     client = TestClient(app)
     loc = client.post("/trade", data={"name": "o", "capital": "50000"}, follow_redirects=False).headers["location"]
     r = client.get(loc + "/opt?u=AAA")
-    assert r.status_code == 200 and "期权链 AAA" in r.text and "行权价" in r.text
+    assert r.status_code == 200 and "Option chain AAA" in r.text and "Strike" in r.text
     r = client.get(loc + f"/opt?u=AAA&c={CALL}&side=buy")
-    assert "下单：AAA 2026-11-20 110 Call" in r.text and "payoff" in r.text
+    assert "Order: AAA 2026-11-20 110 Call" in r.text and "payoff" in r.text
     r = client.post(loc + "/opt/order", data={**o(qty="1"), "u": "AAA"}, follow_redirects=True)
-    assert "已成交" in r.text
+    assert "Filled" in r.text
     r = client.get(loc)
-    assert "期权持仓" in r.text and "AAA 2026-11-20 110 Call" in r.text
+    assert "Option positions" in r.text and "AAA 2026-11-20 110 Call" in r.text
     r = client.post(loc + "/opt/order", data={**o(contract=PUT, side="sell", qty="9"), "u": "AAA"}, follow_redirects=True)
-    assert "现金不够" in r.text
+    assert "Not enough cash" in r.text

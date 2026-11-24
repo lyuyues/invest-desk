@@ -14,9 +14,9 @@ from radar.weekly import Runner
 
 log = logging.getLogger(__name__)
 
-PROMPT = """下面是 {ticker} 在 {filed} 向 SEC 提交的 8-K（事项：{items}）。用中文写 1–2 句简要，不超过 90 字：
-说清楚实质内容（发生了什么、关键数字/人名/日期）。如果是例行文件（如只是附上财报新闻稿），就概括新闻稿最重要的一两个数字。
-不要客套、不要加标题，只输出简要本身。
+PROMPT = """Below is the 8-K that {ticker} filed with the SEC on {filed} (items: {items}). Write a 1–2 sentence summary in English, no more than 60 words:
+State the substance (what happened, key numbers/names/dates). If it is a routine filing (e.g. it just attaches the earnings press release), summarize the one or two most important numbers from the press release.
+No pleasantries, no headings; output only the summary itself.
 
 {text}"""
 
@@ -51,7 +51,7 @@ def fetch_text(get: Getter, url: str, max_chars: int = 16000) -> str:
         items = get(base + "/index.json").json()["directory"]["item"]
         exhibits = exhibit_names([i["name"] for i in items], url.rsplit("/", 1)[1])
         for name in exhibits[:2]:
-            parts.append(f"[附件 {name}] " + to_text(get(f"{base}/{name}").text)[:8000])
+            parts.append(f"[Exhibits {name}] " + to_text(get(f"{base}/{name}").text)[:8000])
     except Exception as e:  # exhibits are optional
         log.info("no exhibit index for %s: %s", url, e)
     return "\n\n".join(parts)[:max_chars]
@@ -67,9 +67,9 @@ def pending(conn: sqlite3.Connection, today, days: int = 60) -> list[sqlite3.Row
 def run(conn: sqlite3.Connection, get: Getter, runner: Runner, now: datetime, limit: int = 8) -> int:
     if not conn.execute("SELECT 1 FROM meta WHERE key='filing_notes_v4'").fetchone():
         # earlier versions missed the cover page / "exhibit991"-style names → redo summaries without content
-        conn.execute("DELETE FROM filing_notes WHERE summary LIKE '%截断%' OR summary LIKE '%看不到%' "
-                     "OR summary LIKE '%没有附具体%' OR summary LIKE '%未附%' OR summary LIKE '%没有具体%' "
-                     "OR summary LIKE '%未披露具体%' OR summary LIKE '%没有披露具体%'")
+        conn.execute("DELETE FROM filing_notes WHERE summary LIKE '%truncated%' OR summary LIKE '%cannot see%' "
+                     "OR summary LIKE '%not attached%' OR summary LIKE '%not included%' OR summary LIKE '%no specific%' "
+                     "OR summary LIKE '%not disclosed%' OR summary LIKE '%did not disclose%'")
         conn.execute("INSERT OR REPLACE INTO meta VALUES ('filing_notes_v4', '1')")
         conn.commit()
     n = 0

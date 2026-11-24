@@ -20,24 +20,24 @@ TRADING_DAYS = 252
 
 # type → (label template, params, needs a position). Params: (name, label, default, kind) with kind int | pct.
 CONDS: dict[str, tuple[str, list[tuple[str, str, float, str]], bool]] = {
-    "new_high":   ("收盘创 {n} 日新高", [("n", "天数", 55, "int")], False),
-    "new_low":    ("收盘创 {n} 日新低", [("n", "天数", 20, "int")], False),
-    "ret_up":     ("{n} 日涨幅 ≥ {pct}%", [("n", "天数", 3, "int"), ("pct", "%", 5, "pct")], False),
-    "ret_down":   ("{n} 日跌幅 ≥ {pct}%", [("n", "天数", 3, "int"), ("pct", "%", 5, "pct")], False),
-    "above_ma":   ("收盘在 {n} 日均线上方", [("n", "天数", 200, "int")], False),
-    "below_ma":   ("收盘在 {n} 日均线下方", [("n", "天数", 200, "int")], False),
-    "ma_up":      ("{fast} 日均线在 {slow} 日均线上方", [("fast", "快线", 50, "int"), ("slow", "慢线", 200, "int")], False),
-    "ma_down":    ("{fast} 日均线在 {slow} 日均线下方", [("fast", "快线", 50, "int"), ("slow", "慢线", 200, "int")], False),
-    "dip":        ("较 {n} 日最高价回撤 ≥ {pct}%", [("n", "天数", 252, "int"), ("pct", "%", 20, "pct")], False),
-    "stop_loss":  ("亏损 ≥ {pct}%（止损）", [("pct", "%", 10, "pct")], True),
-    "trailing":   ("从持仓最高点回撤 ≥ {pct}%（移动止盈）", [("pct", "%", 15, "pct")], True),
-    "take_profit": ("盈利 ≥ {pct}%（止盈）", [("pct", "%", 30, "pct")], True),
-    "max_hold":   ("持有满 {n} 个交易日", [("n", "天数", 60, "int")], True),
-    # valuation: DCF upside = fair value / price − 1 (fair value from the 估值 panel; your own inputs if set).
+    "new_high":   ("Close at {n}-day high", [("n", "Days", 55, "int")], False),
+    "new_low":    ("Close at {n}-day low", [("n", "Days", 20, "int")], False),
+    "ret_up":     ("{n}-day gain ≥ {pct}%", [("n", "Days", 3, "int"), ("pct", "%", 5, "pct")], False),
+    "ret_down":   ("{n}-day drop ≥ {pct}%", [("n", "Days", 3, "int"), ("pct", "%", 5, "pct")], False),
+    "above_ma":   ("Close above {n}-day MA", [("n", "Days", 200, "int")], False),
+    "below_ma":   ("Close below {n}-day MA", [("n", "Days", 200, "int")], False),
+    "ma_up":      ("{fast}-day MA above {slow}-day MA", [("fast", "Fast MA", 50, "int"), ("slow", "Slow MA", 200, "int")], False),
+    "ma_down":    ("{fast}-day MA below {slow}-day MA", [("fast", "Fast MA", 50, "int"), ("slow", "Slow MA", 200, "int")], False),
+    "dip":        ("Drawdown from {n}-day high ≥ {pct}%", [("n", "Days", 252, "int"), ("pct", "%", 20, "pct")], False),
+    "stop_loss":  ("Loss ≥ {pct}% (stop loss)", [("pct", "%", 10, "pct")], True),
+    "trailing":   ("Drawdown from peak since entry ≥ {pct}% (trailing take-profit)", [("pct", "%", 15, "pct")], True),
+    "take_profit": ("Gain ≥ {pct}% (take profit)", [("pct", "%", 30, "pct")], True),
+    "max_hold":   ("Held for {n} trading days", [("n", "Days", 60, "int")], True),
+    # valuation: DCF upside = fair value / price − 1 (fair value from the Valuation panel; your own inputs if set).
     # No point-in-time history of fair values exists → forward paper accounts only, not backtests.
-    "val_ge":     ("DCF 上涨空间 ≥ {pct}%", [("pct", "%", 100, "upct")], False),
-    "val_le":     ("DCF 上涨空间 ≤ {pct}%", [("pct", "%", 5, "upct")], False),
-    "mcap_ge":    ("市值 ≥ {b} 亿美元", [("b", "亿美元", 10, "bil")], False),
+    "val_ge":     ("DCF upside ≥ {pct}%", [("pct", "%", 100, "upct")], False),
+    "val_le":     ("DCF upside ≤ {pct}%", [("pct", "%", 5, "upct")], False),
+    "mcap_ge":    ("Market cap ≥ {b} x $100M", [("b", "x $100M", 10, "bil")], False),
 }
 VALUATION_CONDS = ("val_ge", "val_le", "mcap_ge")   # need today's fundamentals → forward paper accounts only
 
@@ -46,22 +46,22 @@ def uses_valuation(spec: dict) -> bool:
     return any(c["type"] in VALUATION_CONDS for side in ("entry", "exit") for c in spec[side]["conds"])
 
 PRESETS: dict[str, dict] = {
-    "p:trend": {"name": "趋势跟随（突破）", "note": "追强砍弱的系统化版本：长周期新高才买，跌破短周期新低就走（海龟交易法思路）",
+    "p:trend": {"name": "Trend following (breakout)", "note": "A systematic version of buying strength and cutting weakness: buy only on a long-period high, exit on a short-period low (Turtle Trading idea)",
                 "entry": {"mode": "all", "conds": [{"type": "new_high", "n": 55}]},
                 "exit": {"mode": "any", "conds": [{"type": "new_low", "n": 20}]}},
-    "p:chase": {"name": "追涨杀跌（散户版）", "note": "短期涨了就追、短期跌了就割：反面教材，看手续费和噪音怎么吃掉收益",
+    "p:chase": {"name": "Chase and dump (retail style)", "note": "Buy after short-term gains, sell after short-term drops: a cautionary example of how fees and noise eat returns",
                 "entry": {"mode": "all", "conds": [{"type": "ret_up", "n": 3, "pct": 5}]},
                 "exit": {"mode": "any", "conds": [{"type": "ret_down", "n": 3, "pct": 5}]}},
-    "p:ma200": {"name": "200 日均线择时", "note": "站上 200 日线持有，跌破离场",
+    "p:ma200": {"name": "200-day MA timing", "note": "Hold while above the 200-day MA, exit when it breaks below",
                 "entry": {"mode": "all", "conds": [{"type": "above_ma", "n": 200}]},
                 "exit": {"mode": "any", "conds": [{"type": "below_ma", "n": 200}]}},
-    "p:cross": {"name": "均线金叉 / 死叉", "note": "50 日线上穿 200 日线持有，下穿离场",
+    "p:cross": {"name": "MA golden cross / death cross", "note": "Hold when the 50-day MA crosses above the 200-day MA, exit when it crosses below",
                 "entry": {"mode": "all", "conds": [{"type": "ma_up", "fast": 50, "slow": 200}]},
                 "exit": {"mode": "any", "conds": [{"type": "ma_down", "fast": 50, "slow": 200}]}},
-    "p:dip": {"name": "回撤抄底（低买高卖）", "note": "从一年高点跌 20% 买入，赚 25% 或亏 15% 卖出",
+    "p:dip": {"name": "Buy the dip (buy low, sell high)", "note": "Buy after a 20% drop from the 1-year high; sell at +25% or -15%",
               "entry": {"mode": "all", "conds": [{"type": "dip", "n": 252, "pct": 20}]},
               "exit": {"mode": "any", "conds": [{"type": "take_profit", "pct": 25}, {"type": "stop_loss", "pct": 15}]}},
-    "p:value": {"name": "估值低买高卖（DCF）", "note": "股价只有 DCF 合理价一半（上涨空间 ≥ 100%）时买入，涨到接近合理价（上涨空间 ≤ 5%）时卖出。合理价来自估值面板；没有历史估值，只能用策略模拟往前跑",
+    "p:value": {"name": "Valuation buy-low/sell-high (DCF)", "note": "Buy when the price is half the DCF fair value (upside ≥ 100%), sell when it nears fair value (upside ≤ 5%). Fair value comes from the Valuation panel; there is no historical valuation, so it can only be run forward in strategy simulation",
                 "entry": {"mode": "all", "conds": [{"type": "val_ge", "pct": 100}]},
                 "exit": {"mode": "any", "conds": [{"type": "val_le", "pct": 5}]}},
 }
@@ -71,46 +71,46 @@ PRESETS: dict[str, dict] = {
 
 def validate(spec: dict) -> dict:
     """Return a clean spec or raise ValueError (message is shown to the user)."""
-    out = {"name": str(spec.get("name") or "").strip()[:60] or "未命名策略",
+    out = {"name": str(spec.get("name") or "").strip()[:60] or "Untitled strategy",
            "note": str(spec.get("note") or "").strip()[:500]}
     for side in ("entry", "exit"):
         block = spec.get(side) or {}
         mode = block.get("mode", "all" if side == "entry" else "any")
         if mode not in ("all", "any"):
-            raise ValueError("条件组合只能是 all / any")
+            raise ValueError("Condition mode must be all / any")
         conds = []
         for c in (block.get("conds") or [])[:8]:
             t = c.get("type")
             if t not in CONDS:
-                raise ValueError(f"未知条件 {t}")
+                raise ValueError(f"Unknown condition {t}")
             _, params, needs_pos = CONDS[t]
             if side == "entry" and needs_pos:
-                raise ValueError(f"「{describe_cond({'type': t, **{p[0]: p[2] for p in params}})}」只能用作卖出条件")
+                raise ValueError(f"“{describe_cond({'type': t, **{p[0]: p[2] for p in params}})}” can only be used as an exit condition")
             clean = {"type": t}
             for name, label, _, kind in params:
                 try:
                     v = float(c[name])
                 except (KeyError, TypeError, ValueError):
-                    raise ValueError(f"{CONDS[t][0]}：{label} 需要是数字")
+                    raise ValueError(f"{CONDS[t][0]}: {label} must be a number")
                 if kind == "int":
                     v = int(round(v))
                     if not 1 <= v <= 500:
-                        raise ValueError(f"{label} 需在 1–500 之间")
+                        raise ValueError(f"{label} must be between 1 and 500")
                 elif kind == "bil":
                     if not 0.1 <= v <= 1e6:
-                        raise ValueError("市值需在 0.1 到 1,000,000 亿美元之间")
+                        raise ValueError("Market cap must be between 0.1 and 1,000,000 x $100M")
                 elif kind == "upct":
                     if not -90 <= v <= 1000:
-                        raise ValueError("上涨空间需在 −90% 到 1000% 之间")
+                        raise ValueError("Upside must be between −90% and 1000%")
                 elif not 0 < v <= 100:
-                    raise ValueError(f"{label} 需在 0–100% 之间")
+                    raise ValueError(f"{label} must be between 0 and 100%")
                 clean[name] = v
             if t in ("ma_up", "ma_down") and clean["fast"] >= clean["slow"]:
-                raise ValueError("快线天数要小于慢线")
+                raise ValueError("Fast MA days must be less than slow MA days")
             conds.append(clean)
         out[side] = {"mode": mode, "conds": conds}
     if not out["entry"]["conds"]:
-        raise ValueError("至少需要一个买入条件")
+        raise ValueError("At least one entry condition is required")
     return out
 
 
@@ -125,10 +125,10 @@ def describe_cond(c: dict) -> str:
 def describe(spec: dict) -> dict:
     def side(b, verb):
         if not b["conds"]:
-            return "不主动卖出"
-        joiner = " 且 " if b["mode"] == "all" else " 或 "
-        return joiner.join(describe_cond(c) for c in b["conds"]) + f" → 次日收盘{verb}"
-    return {"entry": side(spec["entry"], "买入"), "exit": side(spec["exit"], "卖出")}
+            return "No active exit"
+        joiner = " AND " if b["mode"] == "all" else " OR "
+        return joiner.join(describe_cond(c) for c in b["conds"]) + f" → next close: {verb}"
+    return {"entry": side(spec["entry"], "Buy"), "exit": side(spec["exit"], "Sell")}
 
 
 def warmup(spec: dict) -> int:
@@ -248,9 +248,9 @@ def decide(spec: dict, s: Series, t: int, pos: Pos) -> tuple[str | None, str]:
     ok = len(hits) == len(block["conds"]) if block["mode"] == "all" else bool(hits)
     if not ok:
         return None, ""
-    why = "；".join(describe_cond(c) for c in hits)
+    why = "; ".join(describe_cond(c) for c in hits)
     if any(c["type"] in ("val_ge", "val_le") for c in hits):
-        why += f"（合理价 {s.fair:.2f}，收盘 {s.c[t]:.2f}，上涨空间 {(s.fair / s.c[t] - 1) * 100:+.0f}%）"
+        why += f" (fair value {s.fair:.2f}, close {s.c[t]:.2f}, upside {(s.fair / s.c[t] - 1) * 100:+.0f}%)"
     return ("sell" if pos.holding else "buy"), why
 
 
@@ -328,7 +328,7 @@ def metrics(dates: list[date], equity: list[float], trades=None, in_pos=None, ba
     return out
 
 
-HOLD = {"name": "买入持有", "entry": {"mode": "all", "conds": []}, "exit": {"mode": "any", "conds": []}}
+HOLD = {"name": "Buy & hold", "entry": {"mode": "all", "conds": []}, "exit": {"mode": "any", "conds": []}}
 
 
 @dataclass
@@ -361,7 +361,7 @@ def _variants(spec: dict):
                         alt = validate(alt)
                     except ValueError:
                         continue
-                    yield f"{describe_cond(c)}：{label} {_fmt(c[name])}→{_fmt(v)}", alt
+                    yield f"{describe_cond(c)}: {label} {_fmt(c[name])}→{_fmt(v)}", alt
 
 
 def run(dates: list[date], closes: list[float], specs: list[tuple[str, dict]], cost: float = 0.001,

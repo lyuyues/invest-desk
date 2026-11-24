@@ -1,80 +1,80 @@
 {% extends "base.html" %}
-{% block title %}{{ ticker }} 估值 · Invest Radar{% endblock %}
+{% block title %}{{ ticker }} Valuation · Invest Radar {% endblock %}
 {% block content %}
 <section>
   <div class="row" style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
-    <h2 style="margin:0;font-size:18px;color:var(--ink)">{{ ticker }} 估值</h2>
-    <a href="/t/{{ ticker }}" style="color:var(--accent);text-decoration:none;font-size:13px">个股页 →</a>
-    {% if from_scan %}<a href="/scan/{{ from_scan }}" style="color:var(--accent);text-decoration:none;font-size:13px">← 回全市场组合</a>{% endif %}
+    <h2 style="margin:0;font-size:18px;color:var(--ink)">{{ ticker }} Valuation</h2>
+    <a href="/t/{{ ticker }}" style="color:var(--accent);text-decoration:none;font-size:13px">Stock page →</a>
+    {% if from_scan %}<a href="/scan/{{ from_scan }}" style="color:var(--accent);text-decoration:none;font-size:13px">← Back to market-wide portfolio</a>{% endif %}
     <span class="sp" style="flex:1"></span>
-    <span class="muted">数据更新 {{ updated }}</span>
-    <form method="post" action="/v/{{ ticker }}/refresh" style="display:inline"><button class="chipbtn">重新拉 SEC 数据</button></form>
+    <span class="muted">Data updated {{ updated }}</span>
+    <form method="post" action="/v/{{ ticker }}/refresh" style="display:inline"><button class="chipbtn">Re-fetch SEC data</button></form>
   </div>
-  {% if error %}<div class="muted" style="color:var(--down);margin-top:6px">上次刷新失败：{{ error }}</div>{% endif %}
-  {% if from_scan %}<div class="muted" style="margin-top:6px">在这里改的假设会存成「我的 DCF」，全市场组合从下一个收盘起就按你的合理价判断买卖。点「恢复自动」就回到自动 DCF。</div>{% endif %}
-  {% if v and v.note %}<div class="muted" style="margin-top:6px">注：{{ v.note }}</div>{% endif %}
+  {% if error %}<div class="muted" style="color:var(--down);margin-top:6px">Last refresh failed: {{ error }}</div>{% endif %}
+  {% if from_scan %}<div class="muted" style="margin-top:6px">Assumptions changed here are saved as “My DCF”; from the next close, the market-wide portfolio uses your fair value for buy/sell decisions. Click “Reset to auto” to go back to the automatic DCF.</div>{% endif %}
+  {% if v and v.note %}<div class="muted" style="margin-top:6px">Note: {{ v.note }}</div>{% endif %}
   {% if v %}
   <div class="stats" style="margin-top:10px">
-    <div>价格<b>{{ '%.2f' % price if price else '—' }}</b></div>
-    <div>公允价值·自动<b id="fv-auto">—</b></div>
-    <div>公允价值·当前假设<b id="fv-cur">—</b></div>
-    <div>上涨空间<b id="upside">—</b></div>
-    <div>折现率（WACC）<b id="wacc-tile">—</b></div>
-    <div>永续价值占比<b id="tshare">—</b></div>
-    <div>隐含退出 EV/EBITDA<b id="exit-ebitda">—</b></div>
+    <div>Price<b>{{ '%.2f' % price if price else '—' }}</b></div>
+    <div>Fair value · Auto<b id="fv-auto">—</b></div>
+    <div>Fair value · current assumptions<b id="fv-cur">—</b></div>
+    <div>Upside<b id="upside">—</b></div>
+    <div>Discount rate (WACC)<b id="wacc-tile">—</b></div>
+    <div>Terminal value share<b id="tshare">—</b></div>
+    <div>Implied exit EV/EBITDA<b id="exit-ebitda">—</b></div>
   </div>
   {% endif %}
 </section>
 {% if v %}
 <section>
-  <h2>假设 <span class="muted" id="state"></span></h2>
+  <h2>Assumptions <span class="muted" id="state"></span></h2>
   <form id="vf" class="vform">
-    <label>折现率 %<input name="rr" type="number" step="0.1"><small>自动 = 公司 WACC（见下方拆解）</small></label>
-    <label>永续增长率 %<input name="terminal" type="number" step="0.1"></label>
-    <label>FCF 利润率 %<input name="fcf_margin" type="number" step="0.1"><small>公司口径：近 5 年 (经营现金流 − 资本开支)/收入，加回税后利息</small></label>
-    <label>股数（百万）<input name="shares" type="number" step="1"></label>
-    <label>第 1 年收入（百万）<input name="a0" type="number" step="1"><small>分析师一致预期</small></label>
-    <label>第 2 年收入（百万）<input name="a1" type="number" step="1"><small>分析师一致预期</small></label>
-    <label>之后起始增长率 %<input name="g_start" type="number" step="0.1"><small>之后每年线性降到永续增长率</small></label>
+    <label>Discount rate %<input name="rr" type="number" step="0.1"><small>Auto = company WACC (see breakdown below)</small></label>
+    <label>Terminal growth rate %<input name="terminal" type="number" step="0.1"></label>
+    <label>FCF margin %<input name="fcf_margin" type="number" step="0.1"><small>Company basis: last 5 years (operating cash flow − capex)/revenue, with after-tax interest added back</small></label>
+    <label>Shares (M)<input name="shares" type="number" step="1"></label>
+    <label>Year 1 revenue (M)<input name="a0" type="number" step="1"><small>Analyst consensus</small></label>
+    <label>Year 2 revenue (M)<input name="a1" type="number" step="1"><small>Analyst consensus</small></label>
+    <label>Starting growth rate after that %<input name="g_start" type="number" step="0.1"><small>Then declines linearly each year to the terminal growth rate</small></label>
   </form>
   <div style="display:flex;gap:8px;margin-top:10px">
-    <button id="save" class="chipbtn">保存为我的假设</button>
-    <button id="reset" class="chipbtn">恢复自动</button>
+    <button id="save" class="chipbtn">Save as my assumptions</button>
+    <button id="reset" class="chipbtn">Reset to auto</button>
   </div>
   <div class="muted" id="warn" style="margin-top:6px"></div>
 </section>
 <section>
-  <h2>10 年预测</h2>
+  <h2>10-year forecast</h2>
   <div class="scroll"><table id="proj"></table></div>
 </section>
 {% if v.wacc %}
 <section>
-  <h2>WACC 拆解 <span class="muted" style="font-weight:400;font-size:12px">折现自由现金流（公司口径）用；估算，不构成建议</span></h2>
+  <h2>WACC breakdown <span class="muted" style="font-weight:400;font-size:12px">Used to discount free cash flow (firm basis); estimate, not advice</span></h2>
   <div class="scroll"><table id="waccT"></table></div>
   <div class="scroll" style="margin-top:8px"><table id="bridge"></table></div>
   <div class="muted" id="wacc-notes" style="margin-top:6px"></div>
 </section>
 {% endif %}
 <section>
-  <h2>隐含退出倍数 <span class="muted" style="font-weight:400;font-size:12px">第 10 年终值 ÷ 第 10 年指标；“现在” = 市值 ÷ 最近一年年报</span></h2>
+  <h2>Implied exit multiple <span class="muted" style="font-weight:400;font-size:12px">Year-10 terminal value ÷ year-10 metric; “Now” = Market cap ÷ latest annual report</span></h2>
   <div class="scroll"><table id="exitm"></table></div>
   <div class="muted" id="exit-note" style="margin-top:6px"></div>
 </section>
 <section>
-  <h2>敏感性（公允价值；行 = 折现率，列 = 永续增长率；≥ 现价标绿）</h2>
+  <h2>Sensitivity (fair value; rows = discount rate, columns = terminal growth; ≥ current price in green)</h2>
   <div class="scroll"><table id="sens"></table></div>
 </section>
 <section>
-  <h2>历史财务（10-K，百万美元）</h2>
+  <h2>Historical financials (10-K, $M)</h2>
   <div class="scroll"><table id="hist" class="fin"></table></div>
 </section>
 {% if v.quarterly %}
 <section>
-  <h2>近 10 个季度（10-Q；Q4 由年报推算）</h2>
+  <h2>Last 10 quarters (10-Q; Q4 derived from the annual report)</h2>
   <div class="scroll"><table id="qtr" class="fin"></table></div>
 </section>
 {% endif %}
-<section class="muted">引擎：{{ v.meta.get('Growth Model') }} · 行业 {{ v.meta.get('Sector') }} · 收入科目 {{ v.meta.get('Revenue Tag') }} · 货币 {{ v.meta.get('Currency') }}</section>
+<section class="muted">Engine: {{ v.meta.get('Growth Model') }} · Sector {{ v.meta.get('Sector') }} · Revenue tag {{ v.meta.get('Revenue Tag') }} · Currency {{ v.meta.get('Currency') }}</section>
 <script>
 const AUTO = {{ v.auto | tojson }}, MINE = {{ mine | tojson }}, PRICE = {{ price | tojson }}, T = {{ ticker | tojson }};
 const W = {{ (v.wacc or none) | tojson }};
@@ -85,7 +85,7 @@ const money = x => x == null ? "—" : Math.abs(x) >= 1e3 ? (x / 1e3).toFixed(1)
 
 function project(inp) {
   const rr = inp.rr, tg = inp.terminal;
-  if (!(rr > tg)) throw new Error("折现率必须大于永续增长率");
+  if (!(rr > tg)) throw new Error("Discount rate must be greater than the perpetual growth rate");
   const an = (inp.analyst || []).filter(a => a), n = an.length;
   let growth;
   if (inp.use_path && inp.path) growth = inp.path.slice(0, YEARS);
@@ -126,10 +126,10 @@ function exitMultiples(r, inp) {
   const n = r.rev.length - 1, rev = r.rev[n], cap = PRICE && inp.shares ? PRICE * inp.shares : null;
   const evNow = cap != null ? cap + (inp.net_debt || 0) : null, L = k => (lastHist(k) || {}).v;
   return [
-    ["EV / EBITDA", mult(r.tv, EM ? rev * EM.v : null), mult(evNow, L("EBITDA (M)")), EM ? `EBITDA 利润率按近 ${EM.n} 年平均 ${pct(EM.v)}` : "没有 EBITDA 数据"],
-    ["EV / FCF", mult(r.tv, r.fcf[n]), mult(evNow, L("Free Cash Flow (M)")), `= (1 + 永续增长) ÷ (折现率 − 永续增长)`],
-    ["P / E（近似）", mult(r.tv - (inp.net_debt || 0), NM ? rev * NM.v : null), mult(cap, L("Net Income (M)")), NM ? `净利率按近 ${NM.n} 年平均 ${pct(NM.v)}；终值减今天的净负债` : "没有净利润数据"],
-    ["EV / 收入", mult(r.tv, rev), mult(evNow, L("Revenue (M)")), ""],
+    ["EV / EBITDA", mult(r.tv, EM ? rev * EM.v : null), mult(evNow, L("EBITDA (M)")), EM ? `EBITDA margin uses the last ${EM.n} years’ average ${pct(EM.v)}` : "No EBITDA data"],
+    ["EV / FCF", mult(r.tv, r.fcf[n]), mult(evNow, L("Free Cash Flow (M)")), `= (1 + terminal growth) ÷ (Discount rate − terminal growth)`],
+    ["P / E (approx.)", mult(r.tv - (inp.net_debt || 0), NM ? rev * NM.v : null), mult(cap, L("Net Income (M)")), NM ? `Net margin uses the last ${NM.n} years’ average ${pct(NM.v)}; terminal value minus today’s net debt` : "No net income data"],
+    ["EV / Revenue", mult(r.tv, rev), mult(evNow, L("Revenue (M)")), ""],
   ];
 }
 const merged = mine => mine ? { ...AUTO, ...mine, use_path: false } : { ...AUTO, use_path: true };
@@ -154,38 +154,38 @@ function render(inp) {
   $("#tshare").textContent = pct(r.pvT / r.ev);
   const xm = exitMultiples(r, inp), ly = lastHist("Revenue (M)");
   $("#exit-ebitda").textContent = fx(xm[0][1]);
-  $("#exitm").innerHTML = `<tr><th></th><th>隐含退出（${AUTO.base_year + r.rev.length} 年）</th><th>现在${ly ? `（${ly.year} 年报）` : ""}</th><th></th></tr>`
+  $("#exitm").innerHTML = `<tr><th></th><th>Implied exit (${AUTO.base_year + r.rev.length})</th><th>Now${ly ? ` (${ly.year} annual report)` : ""}</th><th></th></tr>`
     + xm.map(([k, ex, now, note]) => `<tr><td>${k}</td><td><b>${fx(ex)}</b></td><td>${fx(now)}</td><td class="muted">${note}</td></tr>`).join("");
-  $("#exit-note").textContent = "终值是企业价值口径（WACC 折现公司自由现金流）；“现在”的 EV = 市值 + 净负债。退出倍数明显高于同行或现在，通常说明永续增长率或折现率的假设偏乐观。";
+  $("#exit-note").textContent = "Terminal value is on an enterprise-value basis (WACC-discounted free cash flow to the firm); “Now” EV = market cap + net debt. An exit multiple well above peers or today usually means the terminal growth or discount rate assumption is optimistic.";
   $("#wacc-tile").textContent = pct(inp.rr);
   if (W && $("#waccT")) {
     const p2 = x => x == null ? "—" : (x * 100).toFixed(2) + "%";
-    $("#waccT").innerHTML = `<tr><th></th><th>值</th><th>来源</th></tr>`
-      + `<tr><td>无风险利率</td><td>${p2(W.rf)}</td><td class="muted">10 年美债 DGS10${W.rf_date ? `（${W.rf_date}）` : "（默认值）"}</td></tr>`
-      + `<tr><td>β（调整后）</td><td>${W.beta.toFixed(2)}</td><td class="muted">Yahoo 5 年月度 β ${W.beta_raw != null ? W.beta_raw.toFixed(2) : "—"}，Blume 调整 = 0.67 × 原始 + 0.33</td></tr>`
-      + `<tr><td>股权风险溢价</td><td>${p2(W.erp)}</td><td class="muted">美国长期共识区间约 4.5–5.5%</td></tr>`
-      + `<tr><td>股权成本</td><td><b>${p2(W.re)}</b></td><td class="muted">CAPM = 无风险 + β × 溢价</td></tr>`
-      + `<tr><td>税前债务成本</td><td>${p2(W.rd)}</td><td class="muted">利息费用 ÷ 有息负债${W.year ? `（${W.year} 年报）` : ""}</td></tr>`
-      + `<tr><td>税率</td><td>${p2(W.tax)}</td><td class="muted">有效税率</td></tr>`
-      + `<tr><td>权重 股权 / 债务</td><td>${p2(W.we)} / ${p2(W.wd)}</td><td class="muted">市值 ${money(W.equity)} · 有息负债 ${money(W.debt)}</td></tr>`
-      + `<tr><td>WACC</td><td><b>${p2(W.wacc)}</b></td><td class="muted">${Math.abs(inp.rr - W.wacc) > 0.0001 ? `当前用 ${p2(inp.rr)}` : "当前使用"}</td></tr>`;
-    $("#bridge").innerHTML = `<tr><th>企业价值</th><th>− 净负债</th><th>= 股权价值</th><th>÷ 股数</th><th>= 每股</th></tr>`
+    $("#waccT").innerHTML = `<tr><th></th><th>Value</th><th>Source</th></tr>`
+      + `<tr><td>Risk-free rate</td><td>${p2(W.rf)}</td><td class="muted">10-year Treasury DGS10${W.rf_date ? ` (${W.rf_date})` : " (default)"}</td></tr>`
+      + `<tr><td>β (adjusted)</td><td>${W.beta.toFixed(2)}</td><td class="muted">Yahoo 5-year monthly β ${W.beta_raw != null ? W.beta_raw.toFixed(2) : "—"}, Blume adjustment = 0.67 × raw + 0.33</td></tr>`
+      + `<tr><td>Equity risk premium</td><td>${p2(W.erp)}</td><td class="muted">Long-run US consensus range approx. 4.5-5.5%</td></tr>`
+      + `<tr><td>Cost of equity</td><td><b>${p2(W.re)}</b></td><td class="muted">CAPM = risk-free + β × premium</td></tr>`
+      + `<tr><td>Pre-tax cost of debt</td><td>${p2(W.rd)}</td><td class="muted">Interest expense ÷ Interest-bearing debt${W.year ? ` (${W.year} annual report)` : ""}</td></tr>`
+      + `<tr><td>Tax rate</td><td>${p2(W.tax)}</td><td class="muted">Effective tax rate</td></tr>`
+      + `<tr><td>Weights equity / debt</td><td>${p2(W.we)} / ${p2(W.wd)}</td><td class="muted">Market cap ${money(W.equity)} · Interest-bearing debt ${money(W.debt)}</td></tr>`
+      + `<tr><td>WACC</td><td><b>${p2(W.wacc)}</b></td><td class="muted">${Math.abs(inp.rr - W.wacc) > 0.0001 ? `Currently using ${p2(inp.rr)}` : "In use"}</td></tr>`;
+    $("#bridge").innerHTML = `<tr><th>Enterprise value</th><th>− Net debt</th><th>= Equity value</th><th>÷ Shares</th><th>= Per share</th></tr>`
       + `<tr><td>${money(r.ev)}</td><td>${money(r.nd)}</td><td>${money(r.equity)}</td><td>${Math.round(inp.shares)}M</td><td><b>${r.fair == null ? "—" : r.fair.toFixed(2)}</b></td></tr>`;
-    $("#wacc-notes").textContent = (W.notes || []).join("；") + ((W.notes || []).length ? "。" : "")
-      + (W.financial ? "" : ` 净负债 = 有息负债 ${money(W.debt)} − 现金及投资 ${money(W.cash)}。`) + (AUTO.fcff_addback ? ` FCF 利润率已加回税后利息 ${pct(AUTO.fcff_addback)}。` : "");
+    $("#wacc-notes").textContent = (W.notes || []).join("; ") + ((W.notes || []).length ? "." : "")
+      + (W.financial ? "" : ` Net debt = Interest-bearing debt ${money(W.debt)} − Cash & investments ${money(W.cash)}.`) + (AUTO.fcff_addback ? ` FCF margin includes after-tax interest added back ${pct(AUTO.fcff_addback)}.` : "");
   }
   const yrs = r.rev.map((_, i) => AUTO.base_year + i + 1), nA = inp.use_path ? AUTO.analyst.length : (inp.analyst || []).length;
-  $("#proj").innerHTML = `<tr><th></th>${yrs.map((y, i) => `<th>${y}${i < nA ? "ᵃ" : ""}</th>`).join("")}<th>永续</th></tr>`
-    + `<tr><td>收入</td>${r.rev.map(x => `<td>${money(x)}</td>`).join("")}<td></td></tr>`
-    + `<tr><td>增长率</td>${r.growth.map(x => `<td>${pct(x)}</td>`).join("")}<td>${pct(inp.terminal)}</td></tr>`
+  $("#proj").innerHTML = `<tr><th></th>${yrs.map((y, i) => `<th>${y}${i < nA ? "ᵃ" : ""}</th>`).join("")}<th>Terminal</th></tr>`
+    + `<tr><td>Revenue</td>${r.rev.map(x => `<td>${money(x)}</td>`).join("")}<td></td></tr>`
+    + `<tr><td>Growth</td>${r.growth.map(x => `<td>${pct(x)}</td>`).join("")}<td>${pct(inp.terminal)}</td></tr>`
     + `<tr><td>FCF</td>${r.fcf.map(x => `<td>${money(x)}</td>`).join("")}<td></td></tr>`
-    + `<tr><td>现值</td>${r.pv.map(x => `<td>${money(x)}</td>`).join("")}<td>${money(r.pvT)}</td></tr>`;
+    + `<tr><td>Present value</td>${r.pv.map(x => `<td>${money(x)}</td>`).join("")}<td>${money(r.pvT)}</td></tr>`;
   const rrs = [-0.02, -0.01, 0, 0.01, 0.02].map(d => +(inp.rr + d).toFixed(4)), tgs = [-0.01, -0.005, 0, 0.005, 0.01].map(d => +(inp.terminal + d).toFixed(4));
   $("#sens").innerHTML = `<tr><th></th>${tgs.map(t => `<th>${pct(t)}</th>`).join("")}</tr>` + rrs.map(rr =>
     `<tr><td>${pct(rr)}</td>${tgs.map(tg => { try { const v = project({ ...inp, rr, terminal: tg }).fair;
       const cls = PRICE && v >= PRICE ? "up" : ""; const cur = rr === +inp.rr.toFixed(4) && tg === +inp.terminal.toFixed(4);
       return `<td class="${cls}" style="${cur ? "font-weight:700" : ""}">${v.toFixed(0)}</td>`; } catch (e) { return "<td>—</td>"; } }).join("")}</tr>`).join("");
-  $("#state").textContent = edited ? "（已修改，未保存）" : (MINE ? "（我的假设）" : "（自动）");
+  $("#state").textContent = edited ? " (edited, unsaved)" : (MINE ? " (my assumptions)" : " (auto)");
 }
 const autoFair = project(merged(null)).fair; $("#fv-auto").textContent = autoFair == null ? "—" : autoFair.toFixed(2);
 let start = merged(MINE); fill(start); render(start);
@@ -198,11 +198,11 @@ $("#save").onclick = () => post({ inputs: read() });
 $("#reset").onclick = () => post({ inputs: null });
 
 // financial tables
-const ROWS = [["Revenue (M)", "收入", "m"], ["_g", "收入增速", "g"], ["Gross Margin (%)", "毛利率", "p"], ["Operating Margin (%)", "营业利润率", "p"],
-  ["Net Profit Margin (%)", "净利率", "p"], ["Net Income (M)", "净利润", "m"], ["Free Cash Flow (M)", "自由现金流", "m"], ["FCF to Profit Margin (%)", "FCF / 净利润", "p"],
-  ["EPS Diluted ($)", "稀释 EPS", "d"], ["SBC (M)", "股权激励", "m"], ["R&D Expense (M)", "研发", "m"], ["CapEx (M)", "资本开支", "m"],
-  ["Buyback (M)", "回购", "m"], ["Dividends Per Share ($)", "每股分红", "d"], ["ROIC (%)", "ROIC", "p"], ["ROE (%)", "ROE", "p"],
-  ["Total Cash (B)", "现金及投资", "b"], ["Total Debt (B)", "总负债(有息)", "b"], ["Shares Outstanding (M)", "股数(百万)", "n"]];
+const ROWS = [["Revenue (M)", "Revenue", "m"], ["_g", "Revenue growth", "g"], ["Gross Margin (%)", "Gross margin", "p"], ["Operating Margin (%)", "Operating margin", "p"],
+  ["Net Profit Margin (%)", "Net margin", "p"], ["Net Income (M)", "Net income", "m"], ["Free Cash Flow (M)", "Free cash flow", "m"], ["FCF to Profit Margin (%)", "FCF / Net income", "p"],
+  ["EPS Diluted ($)", "Diluted EPS", "d"], ["SBC (M)", "SBC", "m"], ["R&D Expense (M)", "R&D", "m"], ["CapEx (M)", "CapEx", "m"],
+  ["Buyback (M)", "Buybacks", "m"], ["Dividends Per Share ($)", "Dividends per share", "d"], ["ROIC (%)", "ROIC", "p"], ["ROE (%)", "ROE", "p"],
+  ["Total Cash (B)", "Cash & investments", "b"], ["Total Debt (B)", "Total debt (interest-bearing)", "b"], ["Shares Outstanding (M)", "Shares (M)", "n"]];
 function finTable(el, T, ncols) {
   if (!T) return;
   const cols = T.cols.slice(-ncols), off = T.cols.length - cols.length, R = T.rows;
@@ -215,7 +215,7 @@ function finTable(el, T, ncols) {
       return a != null && b ? (a / b - 1) * 100 : null; }); }
     else { if (!R[key]) continue; vals = R[key].slice(off); }
     if (vals.every(v => v == null)) continue;
-    h += `<tr><td>${label}${key === "_g" && el.id === "qtr" ? "(同比)" : ""}</td>${vals.map(v => `<td class="${k === "g" && v != null ? (v >= 0 ? "up" : "down") : ""}">${fmt(k, v)}</td>`).join("")}</tr>`;
+    h += `<tr><td>${label}${key === "_g" && el.id === "qtr" ? "(YoY)" : ""}</td>${vals.map(v => `<td class="${k === "g" && v != null ? (v >= 0 ? "up" : "down") : ""}">${fmt(k, v)}</td>`).join("")}</tr>`;
   }
   el.innerHTML = h;
 }

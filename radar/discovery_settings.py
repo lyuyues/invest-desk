@@ -64,7 +64,7 @@ def from_form(form: dict, old: dict) -> dict:
     lo, hi = _num(form, "pe_min"), _num(form, "pe_max")
     if lo is not None and hi is not None:
         if lo >= hi:
-            raise ValueError("P/E 下限要小于上限")
+            raise ValueError("P/E minimum must be less than maximum")
         screen.append(["btwn", "peratio.lasttwelvemonths", lo, hi])
     elif lo is not None:
         screen.append(["gt", "peratio.lasttwelvemonths", lo])
@@ -75,12 +75,12 @@ def from_form(form: dict, old: dict) -> dict:
     for line in (form.get("themes") or "").splitlines():
         if not line.strip():
             continue
-        if ":" not in line and "：" not in line:
-            raise ValueError(f"主题格式应为「名称: 代码, 代码」：{line}")
-        name, rest = re.split(r"[:：]", line, maxsplit=1)
-        tickers = [t.strip().upper() for t in re.split(r"[,，\s]+", rest) if t.strip()]
+        if ":" not in line and ": " not in line:
+            raise ValueError(f"Theme format should be “Name: TICKER, TICKER”: {line}")
+        name, rest = re.split(r"[:: ]", line, maxsplit=1)
+        tickers = [t.strip().upper() for t in re.split(r"[,, \s]+", rest) if t.strip()]
         if any(not re.fullmatch(r"[A-Z0-9][A-Z0-9.\-]{0,9}", t) for t in tickers):
-            raise ValueError(f"主题「{name.strip()}」里有无效代码")
+            raise ValueError(f"Theme “{name.strip()}” contains invalid tickers")
         old_spec = (old.get("themes") or {}).get(name.strip(), {})
         themes[name.strip()] = {**old_spec, "tickers": tickers}
 
@@ -88,16 +88,16 @@ def from_form(form: dict, old: dict) -> dict:
     for line in (form.get("funds") or "").splitlines():
         if not line.strip():
             continue
-        m = re.fullmatch(r"\s*(.+?)\s*[:：]\s*(\d{1,10})\s*", line)
+        m = re.fullmatch(r"\s*(.+?)\s*[:: ]\s*(\d{1,10})\s*", line)
         if not m:
-            raise ValueError(f"基金格式应为「名称: SEC CIK」：{line}")
+            raise ValueError(f"Fund format should be “Name: SEC CIK”: {line}")
         funds[m.group(1)] = int(m.group(2))
 
     def clamp(k, lo, hi, default):
         v = _num(form, k)
         v = default if v is None else v
         if not lo <= v <= hi:
-            raise ValueError(f"{k} 超出范围 {lo}–{hi}")
+            raise ValueError(f"{k} out of range {lo}–{hi}")
         return v
 
     return {**old, "screen": screen, "screen_size": int(clamp("screen_size", 5, 250, 50)),

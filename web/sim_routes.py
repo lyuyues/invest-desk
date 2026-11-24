@@ -1,4 +1,4 @@
-"""策略实验室: /sim (backtest + rule editor) and /paper (live paper accounts). Educational, no real orders."""
+"""Strategy lab: /sim (backtest + rule editor) and /paper (live paper accounts). Educational, no real orders."""
 from __future__ import annotations
 
 import asyncio
@@ -53,7 +53,7 @@ def chart(lines: list[dict], dates: list[date], w: int = 720, h: int = 220, log:
         if key not in seen:
             seen.add(key)
             if i > n * 0.03:
-                out["xt"].append({"x": X(i), "label": str(d.year) if isinstance(key, int) else f"{d.month}月"})
+                out["xt"].append({"x": X(i), "label": str(d.year) if isinstance(key, int) else d.strftime("%b")})
     if len(out["xt"]) > 12:
         out["xt"] = out["xt"][::math.ceil(len(out["xt"]) / 12)]
     for m in marks or []:
@@ -111,20 +111,20 @@ async def sim_page(request: Request):
     ctx = {"ticker": ticker, "years": years, "cost": cost_bps, "split": split, "chosen": chosen,
            "strategies": strategies, "describe": backtest.describe, "error": None, "res": None}
     if not TICKER_RE.match(ticker):
-        ctx["error"] = "股票代码格式不对"
+        ctx["error"] = "Invalid ticker format"
         return _render(request, "sim.html", ctx)
     try:
         dates, closes = await asyncio.to_thread(backtest.fetch_history, ticker, years)
     except Exception as e:
-        dates, closes, ctx["error"] = [], [], f"拉取 {ticker} 历史价格失败：{e}"
+        dates, closes, ctx["error"] = [], [], f"Failed to fetch price history for {ticker}: {e}"
     if not ctx["error"] and len(dates) < 60:
-        ctx["error"] = f"{ticker} 的历史数据太少（{len(dates)} 天）"
+        ctx["error"] = f"{ticker} has too little history ({len(dates)} days)"
     if ctx["error"]:
         return _render(request, "sim.html", ctx)
     val_only = [by_id[c]["spec"]["name"] for c in chosen if backtest.uses_valuation(by_id[c]["spec"])]
     if val_only:
-        ctx["val_note"] = (f"「{'」「'.join(val_only)}」用了估值 / 市值条件，没法回测：只有今天的 DCF 合理价和市值，没有历史数据，"
-                           "拿今天的数字去判断过去的买卖等于偷看未来。请直接开一个「策略模拟」往前跑。")
+        ctx["val_note"] = (f"“{'”, “'.join(val_only)}” use valuation / market-cap conditions and can’t be backtested: we only have today’s DCF fair value and market cap, no history; "
+                           "judging past trades with today’s numbers is look-ahead bias. Start a “Strategy simulation” and run it forward instead.")
     specs = [(c, by_id[c]["spec"]) for c in chosen if not backtest.uses_valuation(by_id[c]["spec"])]
     res = await asyncio.to_thread(backtest.run, dates, closes, specs, cost_bps / 10000, split / 100)
     rows = []
@@ -134,9 +134,9 @@ async def sim_page(request: Request):
         if r.key != "hold":
             idx = {d: j for j, d in enumerate(dates)}
             for t in r.trades:
-                marks.append({"i": idx[t.entry], "v": t.entry_px, "side": "buy", "tip": f"{t.entry} 买 {t.entry_px:.2f}"})
+                marks.append({"i": idx[t.entry], "v": t.entry_px, "side": "buy", "tip": f"{t.entry} Buy {t.entry_px:.2f}"})
                 if t.exit:
-                    marks.append({"i": idx[t.exit], "v": t.exit_px, "side": "sell", "tip": f"{t.exit} 卖 {t.exit_px:.2f}"})
+                    marks.append({"i": idx[t.exit], "v": t.exit_px, "side": "sell", "tip": f"{t.exit} Sell {t.exit_px:.2f}"})
         sens = r.sens
         rows.append({"r": r, "color": color, "name": r.spec["name"],
                      "desc": backtest.describe(r.spec) if r.key != "hold" else None,
@@ -162,7 +162,7 @@ def sim_edit(request: Request, id: str = "", src: str = "p:trend"):
         raise HTTPException(404)
     spec = dict(base["spec"])
     if not cur:
-        spec["name"] = spec["name"] + "（我的版本）"
+        spec["name"] = spec["name"] + " (my version)"
     types = {k: {"label": v[0], "params": [{"name": p[0], "label": p[1], "default": p[2], "kind": p[3]} for p in v[1]],
                  "pos": v[2]} for k, v in backtest.CONDS.items()}
     return _render(request, "sim_edit.html", {"sid": id if cur and not cur["preset"] else "", "spec": spec,
@@ -316,8 +316,8 @@ async def paper_detail(request: Request, aid: int):
         ds = [date.fromisoformat(r["date"]) for r in eq]
         idx = {r["date"]: i for i, r in enumerate(eq)}
         marks = [{"i": idx[f["date"]], "v": f["price"], "side": f["side"]} for f in fills if f["date"] in idx]
-        eq_chart = chart([{"label": "策略", "color": "var(--accent)", "values": [r["equity"] for r in eq]},
-                          {"label": "买入持有", "color": "var(--muted)", "values": [r["hold"] for r in eq]}], ds, log=False)
+        eq_chart = chart([{"label": "Strategy", "color": "var(--accent)", "values": [r["equity"] for r in eq]},
+                          {"label": "Buy & hold", "color": "var(--muted)", "values": [r["hold"] for r in eq]}], ds, log=False)
         price_chart = chart([{"label": a["ticker"], "color": "var(--muted)", "values": [r["price"] for r in eq]}], ds,
                             log=False, marks=marks)
     else:
@@ -348,7 +348,7 @@ async def scan_open(request: Request):
         try:
             st = paper.get_strategy(conn, f.get("strategy", ""))
             if not st:
-                raise ValueError("请选一个策略")
+                raise ValueError("Please choose a strategy")
             return scan.open_account(conn, st, capital, cost, max_pos, datetime.now(timezone.utc), spy)
         finally:
             conn.close()
@@ -406,9 +406,9 @@ def _scan_view(pid: int):
     eq_chart = None
     if len(eq) >= 2:
         ds = [date.fromisoformat(r["date"]) for r in eq]
-        lines = [{"label": "组合", "color": "var(--accent)", "values": [r["equity"] for r in eq]}]
+        lines = [{"label": "Portfolio", "color": "var(--accent)", "values": [r["equity"] for r in eq]}]
         if all(r["bench"] for r in eq):
-            lines.insert(0, {"label": "同期 SPY", "color": "var(--muted)", "values": [r["bench"] for r in eq]})
+            lines.insert(0, {"label": "SPY (same period)", "color": "var(--muted)", "values": [r["bench"] for r in eq]})
         eq_chart = chart(lines, ds, h=160, log=False)
     held = {p["ticker"] for p in pos}
     return {"a": a, "spec": spec, "desc": backtest.describe(spec), "pos": pos, "pending": pending, "fills": fills,
@@ -438,7 +438,7 @@ async def scan_sync(pid: int):
             a = scan.account(conn, pid)
             st = paper.get_strategy(conn, str(a["strategy_id"])) if a and a["strategy_id"] else None
             if not st:
-                raise ValueError("找不到这个组合用的策略（可能删掉了）")
+                raise ValueError("Can’t find the strategy this portfolio uses (it may have been deleted)")
             return scan.update_spec(conn, pid, st["spec"])
         finally:
             conn.close()

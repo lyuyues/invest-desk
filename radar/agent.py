@@ -18,12 +18,12 @@ from radar import views, weekly
 from radar.collectors.edgar import item_labels
 from radar.config import Config
 
-SYSTEM = """你是用户的投资研究助手，嵌在用户自建的 Invest Radar 仪表盘右侧。
-- 用中文回答，简洁、直接，先给结论再给依据。
-- 用户消息里附带了仪表盘的最新数据（价格、提醒、8-K、内部人交易、宏观、预测市场、候选池）；优先基于这些数据回答，需要新闻或背景再用 WebSearch / WebFetch。
-- 任何事实都标注时间点：事件发生时间 和 披露/报道时间 分开写（例如 13F：操作发生在哪个季度、哪天披露）。引用网页要给来源链接。
-- 不编造数据；不确定就说不确定，并说明怎么核实。
-- 可以给观点和推理，但明确区分"数据显示"和"我的判断"。"""
+SYSTEM = """You are the user’s investment research assistant, embedded on the right side of the user’s self-built Invest Radar dashboard.
+- Answer in English, concisely and directly: conclusion first, then the evidence.
+- The user message includes the latest dashboard data (prices, alerts, 8-Ks, insider trades, macro, prediction markets, candidate pool); answer primarily from this data, and use WebSearch / WebFetch only when news or background is needed.
+- Timestamp every fact: state when the event happened and when it was disclosed/reported separately (e.g. for a 13F: which quarter the trade happened in and which day it was disclosed). Give source links when citing web pages.
+- Do not make up data; if unsure, say so and explain how to verify.
+- You may give opinions and reasoning, but clearly distinguish between"what the data shows"and"my judgment"."""
 
 MAX_SECONDS = 300
 
@@ -49,85 +49,85 @@ def page_context(conn: sqlite3.Connection, page: str) -> str:
         t = page[3:].upper()
         ev = views.ticker_events(conn, t, limit=8)
         last = conn.execute("SELECT * FROM quotes WHERE ticker=? ORDER BY ts DESC LIMIT 1", (t,)).fetchone()
-        L = [f"用户正在看 {t} 的个股页。"]
+        L = [f"The user is viewing the stock page for {t}."]
         th = conn.execute("SELECT body, is_default FROM theses WHERE ticker=?", (t,)).fetchone()
         if th:
-            L.append(f"用户的投资逻辑{'（默认值，未修改）' if th['is_default'] else ''}：\n{th['body']}")
+            L.append(f"User’s investment thesis {' (default, not edited)' if th['is_default'] else ''}: \n{th['body']}")
         if last:
-            L.append(f"最新价 {last['price']:.2f}（{last['ts'][:16]} UTC），P/E {last['pe'] or '—'}，"
-                     f"52 周 {last['low52'] or '—'}–{last['high52'] or '—'}")
-        L += [f"- 8-K {f['filed']}：{item_labels(f['items'] or '')}{('：' + f['summary']) if f['summary'] else ''} {f['url']}"
+            L.append(f"Last price {last['price']:.2f} ({last['ts'][:16]} UTC), P/E {last['pe'] or '—'}, "
+                     f"52-week {last['low52'] or '—'}–{last['high52'] or '—'}")
+        L += [f"- 8-K {f['filed']}: {item_labels(f['items'] or '')}{(': ' + f['summary']) if f['summary'] else ''} {f['url']}"
               for f in ev["filings"]]
-        L += [f"- 内部人 {r['tx_date']} {r['owner']}（{r['title'] or ''}）{r['code']} {r['shares'] or 0:,.0f} 股 "
+        L += [f"- Insider {r['tx_date']} {r['owner']} ({r['title'] or ''}) {r['code']} {r['shares'] or 0:,.0f} shares "
               f"@ {r['price'] or 0:.2f}" for r in ev["insiders"]]
-        L += [f"- 财报 {r['date']}：EPS 实际 {r['eps_actual']} / 预期 {r['eps_est']}" for r in ev["earnings"]]
+        L += [f"- Earnings {r['date']}: EPS actual {r['eps_actual']} / Expected {r['eps_est']}" for r in ev["earnings"]]
         from radar import notes
         mine = notes.for_prompt(conn, datetime.now(timezone.utc), days=365, per_ticker=10, ticker=t)
         if mine:
-            L += [f"用户关于 {t} 的笔记（近一年）："] + mine
+            L += [f"User’s notes on {t} (past year):"] + mine
         return "\n".join(L)
     if page == "/earnings":
         cfg_t = [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]
         b = views.earnings_board(conn, cfg_t, datetime.now())
-        L = ["用户正在看「财报」页。即将发布："]
-        L += [f"- {e['ticker']} {e['date']}（{e['days']} 天后）EPS 预期 {e['eps_est']}，近 4 季超预期 {e['beats']}/{e['of']}"
+        L = ["The user is viewing the “Earnings” page. Upcoming:"]
+        L += [f"- {e['ticker']} {e['date']} ({e['days']} days away) EPS est. {e['eps_est']}, beats in last 4 quarters {e['beats']}/{e['of']}"
               for e in b["upcoming"]]
-        L.append("近期已发布：")
-        L += [f"- {e['ticker']} {e['date']} EPS {e['eps_actual']} vs 预期 {e['eps_est']}，"
-              f"股价反应 {'%+.1f%%' % e['move_pct'] if e['move_pct'] is not None else '—'}" for e in b["recent"]]
+        L.append("Recently reported:")
+        L += [f"- {e['ticker']} {e['date']} EPS {e['eps_actual']} vs est. {e['eps_est']}, "
+              f"Price reaction {'%+.1f%%' % e['move_pct'] if e['move_pct'] is not None else '—'}" for e in b["recent"]]
         return "\n".join(L)
     if page.startswith("/daily"):
         rid = page.rsplit("/", 1)[-1]
         r = conn.execute("SELECT title, markdown FROM reports WHERE kind='daily' AND " +
                          ("id=?" if rid.isdigit() else "1=1 ORDER BY id DESC LIMIT 1"),
                          (int(rid),) if rid.isdigit() else ()).fetchone()
-        return f"用户正在看「{r['title']}」：\n{r['markdown'][:6000]}" if r else "用户正在看日报页（还没有日报）。"
+        return f"The user is viewing “{r['title']}”:\n{r['markdown'][:6000]}" if r else "The user is viewing the Daily brief page (no brief yet)."
     if page.startswith("/v/") or page == "/valuation":
         from radar import valuation
         ts = [page[3:].upper()] if page.startswith("/v/") else [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]
-        L = ["用户正在看「估值」页（DCF：前两年分析师收入预期，之后增长线性降到永续；FCF 利润率 × 收入，折现）。"]
+        L = ["The user is viewing the “Valuation” page (DCF: analyst revenue estimates for the first two years, then growth declines linearly to terminal; FCF margin × revenue, discounted)."]
         for r in valuation.summary(conn, ts):
             v = valuation.load(conn, r["ticker"])
             a = v["data"]["auto"] if v and v["data"] else None
-            L.append(f"- {r['ticker']}：价格 {r['price']}，公允价值 自动 {r['auto'] and round(r['auto'], 2)} / 我的 {r['mine'] and round(r['mine'], 2)}，"
-                     f"上涨空间 {r['upside'] and round(r['upside'])}%" + (
-                f"；自动假设 rr {a['rr']:.1%} 永续 {a['terminal']:.1%} FCF 利润率 {a['fcf_margin']:.1%} 分析师收入 {a['analyst']} 起始增长 {a['g_start']:.1%}；我的 {v['mine']}" if a else f"；{r['error']}"))
+            L.append(f"- {r['ticker']}: price {r['price']}, fair value auto {r['auto'] and round(r['auto'], 2)} / Mine {r['mine'] and round(r['mine'], 2)}, "
+                     f"Upside {r['upside'] and round(r['upside'])}%" + (
+                f"; auto assumptions rr {a['rr']:.1%} Terminal {a['terminal']:.1%} FCF margin {a['fcf_margin']:.1%} analyst revenue {a['analyst']} starting growth {a['g_start']:.1%}; mine {v['mine']}" if a else f"; {r['error']}"))
         return "\n".join(L)
     if page == "/notes":
         from radar import notes
         mine = notes.for_prompt(conn, datetime.now(timezone.utc), days=365, total=40)
-        return "用户正在看「笔记」页（用户自己记的学习心得 / 财报与新闻想法）。最近的笔记：\n" + ("\n".join(mine) or "- 还没有笔记")
+        return "The user is viewing the “Notes” page (the user’s own learning notes / thoughts on earnings and news). Recent notes:\n" + ("\n".join(mine) or "- No notes yet")
     if page == "/theses":
         from radar import theses
-        return "用户正在看「投资逻辑」页：\n" + "\n\n".join(theses.for_prompt(conn, [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]))
+        return "The user is viewing the “Theses” page:\n" + "\n\n".join(theses.for_prompt(conn, [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]))
     if page == "/reddit":
         from radar import reddit
         now = datetime.now(timezone.utc)
         tickers = [r["ticker"] for r in conn.execute("SELECT ticker FROM tracked")]
-        return f"用户正在看「Reddit」页。{reddit.LABEL}：\n" + "\n".join(reddit.for_prompt(conn, tickers, now, top=15, per=20))
+        return f"The user is viewing the “Reddit” page. {reddit.LABEL}:\n" + "\n".join(reddit.for_prompt(conn, tickers, now, top=15, per=20))
     if page == "/macro":
         from radar.collectors.macro import kalshi_series
         from radar.config import load_config
         cfg = load_config()
         now = datetime.now(timezone.utc)
         mcfg = cfg.macro.get("markets") or {}
-        L = ["用户正在看「宏观」页（FRED 实际值分组 + Kalshi Fed / 经济数据预期 + Polymarket）。", "经济数据预期（Kalshi）："]
-        L += views.econ_lines(views.econ_markets(conn, kalshi_series(mcfg), now, mcfg.get("shift_hours", 24))) or ["- 暂无"]
-        L += ["高频宏观（FRED 日度 / 周度）："] + (views.fast_macro_lines(views.macro_table(conn, cfg.macro.get("fred") or {})) or ["- 暂无"])
+        L = ["The user is viewing the “Macro” page (FRED actuals by group + Kalshi Fed / economic data expectations + Polymarket).", "Economic data expectations (Kalshi):"]
+        L += views.econ_lines(views.econ_markets(conn, kalshi_series(mcfg), now, mcfg.get("shift_hours", 24))) or ["- None yet"]
+        L += ["High-frequency macro (FRED daily / weekly):"] + (views.fast_macro_lines(views.macro_table(conn, cfg.macro.get("fred") or {})) or ["- None yet"])
         return "\n".join(L)
-    names = {"/": "总览", "/macro": "宏观", "/discover": "发现（候选池）", "/reports": "周报列表"}
+    names = {"/": "Overview", "/macro": "Macro", "/discover": "Discover (candidate pool)", "/reports": "Weekly reports"}
     if page.startswith("/reports/"):
-        return f"用户正在看周报 {page}。"
-    return f"用户正在看「{names.get(page, page)}」页。"
+        return f"The user is viewing weekly report {page}."
+    return f"The user is viewing “{names.get(page, page)}” page."
 
 
 def build_prompt(conn: sqlite3.Connection, cfg: Config, now: datetime, question: str, page: str,
                  first: bool) -> str:
     parts = []
     if first:
-        parts.append("# 仪表盘数据快照\n" + weekly.build_bundle(conn, cfg, now))
-    parts.append("# 当前页面\n" + page_context(conn, page))
-    parts.append("# 问题\n" + question.strip())
+        parts.append("# Dashboard data snapshot\n" + weekly.build_bundle(conn, cfg, now))
+    parts.append("# Current page\n" + page_context(conn, page))
+    parts.append("# Question\n" + question.strip())
     return "\n\n".join(parts)
 
 
@@ -175,7 +175,7 @@ async def run(argv: list[str], prompt: str, cwd: Path) -> AsyncIterator[dict]:
             err = (await proc.stderr.read()).decode(errors="ignore").strip()
             yield {"t": "error", "v": (err or f"claude exited {proc.returncode}")[:300]}
     except TimeoutError:
-        yield {"t": "error", "v": f"超过 {MAX_SECONDS}s 未完成"}
+        yield {"t": "error", "v": f"Not finished after {MAX_SECONDS}s"}
     finally:
         if proc.returncode is None:
             proc.kill()

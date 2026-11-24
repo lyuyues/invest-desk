@@ -28,7 +28,7 @@ def test_wacc_financials_use_cost_of_equity_and_no_bridge():
 def test_wacc_fallbacks_and_clamps():
     w = wacc.compute({"Total Debt (B)": [1.0]}, ["2025"], price=10.0, shares_m=100.0, beta=None, rf=0.04)
     assert w["beta"] == pytest.approx(1.0) and w["tax"] == 0.21 and w["rd"] == pytest.approx(0.055)
-    assert any("β" in n for n in w["notes"]) and any("利息" in n for n in w["notes"])
+    assert any("β" in n for n in w["notes"]) and any("nterest" in n for n in w["notes"])
     w = wacc.compute({"Total Debt (B)": [1.0], "Interest Expense (M)": [500.0]}, ["2025"], 10.0, 100.0, 9.0, 0.04)
     assert w["rd"] == pytest.approx(0.12) and w["beta"] == pytest.approx(1.0)   # Rd capped at rf + 8%; absurd β ignored
     w = wacc.compute({}, [], price=None, shares_m=None, beta=0.4, rf=0.04)

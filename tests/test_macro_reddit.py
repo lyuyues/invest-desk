@@ -54,9 +54,9 @@ def test_shipped_rules_and_reddit_config():
 
 
 def test_kalshi_series_rejects_bad_entry():
-    assert kalshi_series({"kalshi_series": ["kxfed", {"series": "KXU3", "label": "失业率", "max_events": 1}],
+    assert kalshi_series({"kalshi_series": ["kxfed", {"series": "KXU3", "label": "Unemployment rate", "max_events": 1}],
                           "kalshi_max_events": 2}) == [
-        {"series": "KXFED", "label": "kxfed", "max_events": 2}, {"series": "KXU3", "label": "失业率", "max_events": 1}]
+        {"series": "KXFED", "label": "kxfed", "max_events": 2}, {"series": "KXU3", "label": "Unemployment rate", "max_events": 1}]
     with pytest.raises(ValueError):
         kalshi_series({"kalshi_series": [{"label": "no series"}]})
 
@@ -65,7 +65,7 @@ def test_kalshi_series_rejects_bad_entry():
 
 def test_macro_change_avg_jump_up_only():
     rule = {"id": "icsa_jump", "kind": "macro_change", "series": "ICSA", "vs": "avg", "window": 4, "pct": 10,
-            "direction": "up", "label": "首次申领", "level": "notice"}
+            "direction": "up", "label": "Initial jobless claims", "level": "notice"}
     base = [("2026-10-10", 200000.0), ("2026-10-17", 200000.0), ("2026-10-24", 210000.0), ("2026-10-31", 190000.0)]
     [f] = events.macro_change_fires([rule], {"ICSA": base + [("2026-11-07", 225000.0)]})
     assert f.rule_id == "icsa_jump:2026-11-07" and f.once and "225,000" in f.title and "+12%" in f.body
@@ -76,7 +76,7 @@ def test_macro_change_avg_jump_up_only():
 
 def test_macro_change_days_abs_once_per_week():
     rule = {"id": "t10", "kind": "macro_change", "series": "T10YIE", "vs": "days", "days": 7, "abs": 0.15,
-            "label": "10年通胀预期", "level": "notice"}
+            "label": "10Y inflation expectations", "level": "notice"}
     obs = [("2026-11-02", 2.20), ("2026-11-03", 2.22), ("2026-11-09", 2.30), ("2026-11-10", 2.38)]
     [f] = events.macro_change_fires([rule], {"T10YIE": obs})
     assert f.rule_id == "t10:2026-W46" and "+0.16" in f.body  # vs 11-03 (last obs ≥7 days before 11-10)
@@ -88,9 +88,9 @@ def test_macro_change_days_abs_once_per_week():
 
 
 def test_macro_cross_formats_big_numbers():
-    rule = {"id": "icsa", "kind": "macro_cross", "series": "ICSA", "above": 250000, "label": "首次申领", "level": "notice"}
+    rule = {"id": "icsa", "kind": "macro_cross", "series": "ICSA", "above": 250000, "label": "Initial jobless claims", "level": "notice"}
     [f] = events.macro_cross_fires([rule], {"ICSA": [("a", 1.0), ("d1", 240000.0), ("d2", 260000.0)]})
-    assert f.title == "首次申领 升破 250,000" and "240,000 → 260,000" in f.body
+    assert f.title == "Initial jobless claims rose above 250,000" and "240,000 → 260,000" in f.body
 
 
 def test_prob_shift_exclude_series():
@@ -105,7 +105,7 @@ def test_prob_shift_exclude_series():
 def test_macro_job_runs_change_rules(conn):
     csv = "observation_date,ICSA\n" + "\n".join(f"2026-10-{d},200000" for d in (3, 10, 17, 24)) + "\n2026-10-31,260000\n"
     pushed = []
-    cfg = Config(holdings=[], watchlist=[], macro={"fred": {"ICSA": "首次申领"}}, rules=[
+    cfg = Config(holdings=[], watchlist=[], macro={"fred": {"ICSA": "Initial jobless claims"}}, rules=[
         {"id": "j", "kind": "macro_change", "series": "ICSA", "vs": "avg", "window": 4, "pct": 10, "level": "urgent"},
         {"id": "c", "kind": "macro_cross", "series": "ICSA", "above": 250000, "level": "urgent"}])
     out = jobs.macro_job(conn, cfg, NOW, pushed.append, lambda url: httpx.Response(200, text=csv))
@@ -122,15 +122,15 @@ def test_macro_table_prev_change_freq_and_groups(conn):
     _obs(conn, "ICSA", [("2026-10-17", 195000), ("2026-10-24", 195000), ("2026-10-31", 189000)])
     _obs(conn, "DGS10", [("2026-11-05", 4.80), ("2026-11-06", 4.84), ("2026-11-09", 4.82), ("2026-11-10", 4.90)])
     _obs(conn, "GDPNOW", [("2026-04-01", 2.1), ("2026-07-01", 3.27), ("2026-10-01", 3.48)])
-    t = views.macro_table(conn, {"ICSA": "首申", "DGS10": "10Y", "GDPNOW": "GDPNow", "X": "missing"})
+    t = views.macro_table(conn, {"ICSA": "Initial claims", "DGS10": "10Y", "GDPNOW": "GDPNow", "X": "missing"})
     by = {m["series"]: m for m in t}
-    assert by["ICSA"]["prev_change"] == -6000 and by["ICSA"]["freq"] == "周" and by["ICSA"]["prev_date"] == "2026-10-24"
-    assert by["DGS10"]["freq"] == "日" and by["DGS10"]["prev_change"] == pytest.approx(0.08)
-    assert by["GDPNOW"]["freq"] == "季"
-    groups = views.macro_groups(t, {"利率": ["DGS10", "NOPE"], "周度": ["ICSA"]})
+    assert by["ICSA"]["prev_change"] == -6000 and by["ICSA"]["freq"] == "Weekly" and by["ICSA"]["prev_date"] == "2026-10-24"
+    assert by["DGS10"]["freq"] == "Daily" and by["DGS10"]["prev_change"] == pytest.approx(0.08)
+    assert by["GDPNOW"]["freq"] == "Quarterly"
+    groups = views.macro_groups(t, {"Rates": ["DGS10", "NOPE"], "Weekly": ["ICSA"]})
     assert [(g, [m["series"] for m in rows]) for g, rows in groups] == [
-        ("利率", ["DGS10"]), ("周度", ["ICSA"]), ("其他", ["GDPNOW", "X"])]
-    assert views.macro_groups(t, {})[0][0] == "宏观实际值"
+        ("Rates", ["DGS10"]), ("Weekly", ["ICSA"]), ("Other", ["GDPNOW", "X"])]
+    assert views.macro_groups(t, {})[0][0] == "Macro actuals"
     lines = views.fast_macro_lines(t)
     assert len(lines) == 2 and "189,000" in lines[0] and "-6,000" in lines[0]
 
@@ -146,8 +146,8 @@ def _ladder(event, close, probs, title="CPI YoY in November"):
 
 
 def test_econ_markets_ladder_and_binary(conn):
-    cfg = kalshi_series({"kalshi_series": ["KXFED", {"series": "KXCPIYOY", "label": "CPI 同比"},
-                                           {"series": "KXRECSSNBER", "label": "衰退"}]})
+    cfg = kalshi_series({"kalshi_series": ["KXFED", {"series": "KXCPIYOY", "label": "CPI YoY"},
+                                           {"series": "KXRECSSNBER", "label": "Recession"}]})
     close = "2026-12-10T13:30:00Z"
     store_markets(conn, _ladder("KXCPIYOY-26NOV", close, [("3.6", 0.95), ("3.7", 0.5), ("3.8", 0.1)]),
                   NOW - timedelta(hours=30))
@@ -164,7 +164,7 @@ def test_econ_markets_ladder_and_binary(conn):
     assert cpi["median_above"] == 3.7 and cpi["close"] == "2026-12-10"
     assert rec["kind"] == "binary" and rec["prob"] == 0.22 and rec["prob_before"] is None
     lines = views.econ_lines(rows)
-    assert "隐含 3.79%" in lines[0] and "+0.03pp" in lines[0] and "概率 22%" in lines[1]
+    assert "implied 3.79%" in lines[0] and "+0.03pp" in lines[0] and "probability 22%" in lines[1]
     ch = {c["market_id"]: c for c in views.market_changes(conn, NOW, days=1)}
     assert views.is_econ_ladder(ch["KXCPIYOY-26NOV-T3.7"], cfg)
     assert not views.is_econ_ladder(ch["KXRECSSNBER-27"], cfg) and not views.is_econ_ladder(ch["KXFED-26DEC-T3.50"], cfg)
@@ -172,7 +172,7 @@ def test_econ_markets_ladder_and_binary(conn):
 
 def test_negative_strike_parsed(conn):
     store_markets(conn, _ladder("KXCPI-26NOV", "2026-12-10T13:30:00Z", [("-0.1", 0.9), ("0.0", 0.3), ("0.1", 0.1)]), NOW)
-    [r] = views.econ_markets(conn, [{"series": "KXCPI", "label": "CPI 环比", "max_events": 1}], NOW)
+    [r] = views.econ_markets(conn, [{"series": "KXCPI", "label": "CPI MoM", "max_events": 1}], NOW)
     assert r["implied"] == pytest.approx(-0.1 + 1.3 * 0.1) and r["median_above"] == -0.1
 
 
@@ -244,7 +244,7 @@ def test_collect_store_dedup_and_counts(conn):
     st2 = rc.collect(conn, rcfg, ["MSFT"], NOW + timedelta(hours=4), lambda url: httpx.Response(200, text=ATOM),
                      sleep=lambda s: None)
     assert st2["new"] == 0
-    # baseline: one day of history → "历史不足"
+    # baseline: one day of history → "Not enough history"
     c = {r["ticker"]: r for r in reddit.mention_counts(conn, ["MSFT", "AAPL", "F", "TSLA"], NOW)}
     assert set(c) == {"MSFT", "AAPL", "F"} and c["MSFT"]["n24"] == 1 and c["MSFT"]["base"] is None
     assert [p["id"] for p in reddit.ticker_posts(conn, "F", NOW)] == ["t3_bbb"]
@@ -260,8 +260,8 @@ def test_mention_baseline_and_prompt(conn):
     [c] = reddit.mention_counts(conn, ["MSFT"], NOW)
     assert c["n24"] == 3 and c["days"] == 5 and c["base"] == pytest.approx(0.8) and c["ratio"] == pytest.approx(3.75)
     lines = reddit.for_prompt(conn, ["MSFT"], NOW)
-    assert any("MSFT：3 帖（前 5 天日均 0.8，×3.8）" in ln for ln in lines)
-    assert reddit.for_prompt(conn, [], NOW - timedelta(days=30)) == ["- 暂无数据"]
+    assert any("MSFT: 3 posts (prior 5-day avg 0.8, ×3.8)" in ln for ln in lines)
+    assert reddit.for_prompt(conn, [], NOW - timedelta(days=30)) == ["- No data yet"]
 
 
 def test_reddit_job_fails_only_when_all_feeds_fail(conn):
@@ -292,9 +292,9 @@ def client(tmp_path, monkeypatch):
     (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: [F]\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
     (tmp_path / "macro.yaml").write_text(
-        "fred: {ICSA: 首次申领失业金, NFCI: 芝加哥联储金融条件, DGS10: 10年期美债}\n"
-        "fred_groups: {实体经济·周度: [ICSA], 金融条件: [NFCI]}\n"
-        "markets: {kalshi_series: [KXFED, {series: KXCPIYOY, label: CPI 同比}]}\n")
+        "fred: {ICSA: Initial jobless claims, NFCI: Chicago Fed financial conditions, DGS10: 10Y Treasury}\n"
+        "fred_groups: {Real economy · Weekly: [ICSA], Financial conditions: [NFCI]}\n"
+        "markets: {kalshi_series: [KXFED, {series: KXCPIYOY, label: CPI YoY}]}\n")
     monkeypatch.setenv("RADAR_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "r.db"))
     c = db.connect(tmp_path / "r.db")
@@ -317,15 +317,15 @@ def test_macro_page_groups_and_econ(client):
     r = client.get("/macro")
     assert r.status_code == 200
     t = r.text
-    assert "实体经济·周度" in t and "金融条件" in t and "其他" in t
+    assert "Real economy · Weekly" in t and "Financial conditions" in t and "Other" in t
     assert "189,000" in t and "-6,000" in t and "-0.459" in t and "+0.008" in t
-    assert "CPI 同比" in t and "3.79%" in t and "高于 3.7%" in t
+    assert "CPI YoY" in t and "3.79%" in t and "above 3.7%" in t
 
 
 def test_reddit_page_and_agent_context(client, tmp_path):
     r = client.get("/reddit")
     assert r.status_code == 200
-    assert "Big tech earnings" in r.text and "噪音大" in r.text and 'href="/t/MSFT"' in r.text
+    assert "Big tech earnings" in r.text and "noisy" in r.text and 'href="/t/MSFT"' in r.text
     assert 'href="/reddit"' in r.text  # nav entry
     from radar import agent
     from radar.config import load_config
@@ -336,6 +336,6 @@ def test_reddit_page_and_agent_context(client, tmp_path):
     try:
         ctx = agent.page_context(conn, "/reddit")
         assert "Reddit" in ctx and "Big tech earnings" in ctx
-        assert "CPI 同比" in agent.page_context(conn, "/macro")
+        assert "CPI YoY" in agent.page_context(conn, "/macro")
     finally:
         conn.close()

@@ -49,7 +49,7 @@ def test_13f_parse_and_diff():
     prev, cur = discovery.parse_13f_infotable(INFO_PREV), discovery.parse_13f_infotable(INFO_CUR)
     assert cur["02079K305"]["shares"] == 50  # call option skipped
     adds = dict(discovery.diff_13f(prev, cur))
-    assert adds == {"CHEVRON CORP NEW": "加仓 +50%", "ALPHABET INC": "新建仓"}
+    assert adds == {"CHEVRON CORP NEW": "Added +50%", "ALPHABET INC": "New position"}
 
 
 def test_name_matching():
@@ -101,8 +101,8 @@ def test_discover_end_to_end(tmp_path):
 
 def test_13f_stamp():
     assert discovery._13f_stamp("2026-06-30", "2026-08-14") == \
-        "（操作于 2026Q2（04-01~06-30 之间，具体日期不公开），2026-08-14 披露）"
-    assert discovery._13f_stamp("2026-09-30", None).startswith("（操作于 2026Q3（07-01~09-30")
+        "(traded in 2026Q2 (04-01~06-30, exact date not disclosed), 2026-08-14 disclosed)"
+    assert discovery._13f_stamp("2026-09-30", None).startswith("(traded in 2026Q3 (07-01~09-30")
     assert discovery._13f_stamp(None, None) == ""
 
 
@@ -115,12 +115,12 @@ def test_settings_roundtrip():
     f = ds.to_form(old)
     assert f["mcap_b"] == 10 and f["pe_max"] == 30 and "AI: NVDA, AVGO" in f["themes"]
     form = {k: ("" if v is None else str(v)) for k, v in f.items()}
-    form.update(themes="AI: NVDA, avgo\n能源：XOM，CVX", openinsider="", pe_min="", mcap_b="20", min_funds_13f="2")
+    form.update(themes="AI: NVDA, avgo\nEnergy: XOM, CVX", openinsider="", pe_min="", mcap_b="20", min_funds_13f="2")
     new = ds.from_form(form, old)
     assert ["gt", "beta", 1] in new["screen"] and ["gt", "intradaymarketcap", 20e9] in new["screen"]
     assert ["lt", "peratio.lasttwelvemonths", 30.0] in new["screen"]
     assert new["themes"]["AI"] == {"tickers": ["NVDA", "AVGO"], "max_from_high": -30}
-    assert new["themes"]["能源"]["tickers"] == ["XOM", "CVX"]
+    assert new["themes"]["Energy"]["tickers"] == ["XOM", "CVX"]
     assert new["openinsider"] is False and new["min_funds_13f"] == 2
     import pytest
     with pytest.raises(ValueError):
@@ -134,7 +134,7 @@ def test_candidate_review(tmp_path):
     from radar import candidate_review as cr, db
     conn = db.connect(tmp_path / "c.db")
     rows = [{"ticker": "MSFT", "score": 3.2, "channels": ["screen", "theme"], "detail": {"screen": ["x"]}},
-            {"ticker": "TRNS", "score": 2.1, "channels": ["screen", "smart_money"], "detail": {"smart_money": ["2 名内部人买入"]}},
+            {"ticker": "TRNS", "score": 2.1, "channels": ["screen", "smart_money"], "detail": {"smart_money": ["2 insiders bought"]}},
             {"ticker": "ZZZ", "score": 1.0, "channels": ["screen"], "detail": {}}]
     assert [r["ticker"] for r in cr.pick(rows, {"MSFT"}, 1)] == ["TRNS"]
     import sys
@@ -143,11 +143,11 @@ def test_candidate_review(tmp_path):
     b, _ = _fake_builder()
     prompts = []
     out = cr.run(conn, "2026-11-10", rows, {"MSFT"}, 5, datetime(2026, 11, 10, tzinfo=timezone.utc),
-                 lambda p: prompts.append(p) or "TRNS | 小盘工业，内部人加仓 | 估值不便宜\nZZZ ｜ 理由 ｜ 风险\nnoise",
+                 lambda p: prompts.append(p) or "TRNS | Small-cap industrial, insider buying | Not cheap\nZZZ | Reason | Risk\nnoise",
                  builder=b)
     assert out == {"valued": 2, "reviewed": 2}
-    assert "TRNS（渠道：screen+smart_money）" in prompts[0] and "MSFT" not in prompts[0]
-    assert conn.execute("SELECT why FROM candidate_notes WHERE ticker='TRNS'").fetchone()[0] == "小盘工业，内部人加仓"
+    assert "TRNS (channels: screen+smart_money)" in prompts[0] and "MSFT" not in prompts[0]
+    assert conn.execute("SELECT why FROM candidate_notes WHERE ticker='TRNS'").fetchone()[0] == "Small-cap industrial, insider buying"
 
 
 def test_profiles_fill(tmp_path):
@@ -161,9 +161,9 @@ def test_profiles_fill(tmp_path):
     f = lambda t: SimpleNamespace(info=infos[t])
     seen = []
     n = profiles.fill(conn, ["TRNS", "SMH", "TRNS"], datetime(2026, 11, 10, tzinfo=timezone.utc),
-                      lambda p: seen.append(p) or "TRNS | Transcat | 给工业仪器做校准服务\nSMH ｜ VanEck 半导体 ETF ｜ 跟踪美股半导体龙头", f)
+                      lambda p: seen.append(p) or "TRNS | Transcat | Calibration services for industrial instruments\nSMH | VanEck Semiconductor ETF | Tracks leading US semiconductor stocks", f)
     assert n == 2 and "Calibration services" in seen[0]
     p = profiles.lookup(conn)
-    assert p["TRNS"]["desc_zh"] == "给工业仪器做校准服务" and p["SMH"]["industry"] == "ETF"
+    assert p["TRNS"]["desc_zh"] == "Calibration services for industrial instruments" and p["SMH"]["industry"] == "ETF"
     assert profiles.missing(conn, ["TRNS", "NEW"]) == ["NEW"]
     assert profiles.fill(conn, ["TRNS"], datetime(2026, 11, 10, tzinfo=timezone.utc), lambda p: 1 / 0, f) == 0

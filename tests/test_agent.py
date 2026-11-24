@@ -17,7 +17,7 @@ resumed = "--resume" in sys.argv
 def out(o): print(json.dumps(o), flush=True)
 out({"type": "system", "subtype": "init", "session_id": "11111111-2222-3333-4444-555555555555"})
 out({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "server_tool_use", "name": "WebSearch"}}})
-for piece in ["看到", "了 MSFT" if "MSFT" in prompt else "?", " resumed" if resumed else "", " first" if "仪表盘数据快照" in prompt else ""]:
+for piece in ["Saw", " MSFT" if "MSFT" in prompt else "?", " resumed" if resumed else "", " first" if "Dashboard data snapshot" in prompt else ""]:
     out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
 out({"type": "result", "subtype": "success", "is_error": False, "session_id": "11111111-2222-3333-4444-555555555555", "result": "x"})
 '''
@@ -45,15 +45,15 @@ def _events(text):
 
 
 def test_agent_stream_first_turn_and_resume(client):
-    r = client.post("/agent", json={"q": "MSFT 怎么样", "page": "/t/MSFT"})
+    r = client.post("/agent", json={"q": "How is MSFT doing", "page": "/t/MSFT"})
     evs = _events(r.text)
     assert evs[0] == {"t": "session", "v": "11111111-2222-3333-4444-555555555555"}
     assert {"t": "tool", "v": "WebSearch"} in evs
     text = "".join(e["v"] for e in evs if e["t"] == "text")
-    assert text == "看到了 MSFT first"
+    assert text == "Saw MSFT first"
     assert evs[-1]["t"] == "done"
 
-    r = client.post("/agent", json={"q": "再说说", "sid": "11111111-2222-3333-4444-555555555555", "page": "/"})
+    r = client.post("/agent", json={"q": "Tell me more", "sid": "11111111-2222-3333-4444-555555555555", "page": "/"})
     text = "".join(e["v"] for e in _events(r.text) if e["t"] == "text")
     assert "resumed" in text and "first" not in text   # follow-up: no full bundle again
 
@@ -79,5 +79,5 @@ def test_parse_event_ignores_noise():
 def test_page_context_ticker(tmp_path):
     conn = db.connect(tmp_path / "p.db")
     db.insert_quote(conn, Quote("NVDA", NOW, 180, 175, 40.0, 210, 120))
-    assert "NVDA 的个股页" in agent.page_context(conn, "/t/nvda") and "180.00" in agent.page_context(conn, "/t/nvda")
-    assert "宏观" in agent.page_context(conn, "/macro")
+    assert "stock page for NVDA" in agent.page_context(conn, "/t/nvda") and "180.00" in agent.page_context(conn, "/t/nvda")
+    assert "Macro" in agent.page_context(conn, "/macro")

@@ -93,7 +93,7 @@ def _job_fn(name: str, conn, cfg: Config, now: datetime, push):
         def run():
             rid, ok = weekly.generate(conn, cfg, now, weekly.claude_runner())
             link = f"{cfg.public_url}/reports/{rid}" if cfg.public_url else f"/reports/{rid}"
-            push(Fire(f"weekly:{rid}", "*", "notice", "📊 本周投资周报已生成" if ok else "📊 周报（Claude 失败，仅数据）", link))
+            push(Fire(f"weekly:{rid}", "*", "notice", "📊 This week’s investment report is ready" if ok else "📊 Weekly report (Claude failed, data only)", link))
             if not ok:
                 raise RuntimeError("claude generation failed; raw bundle saved")
             return f"report={rid}"
@@ -117,7 +117,7 @@ def _job_fn(name: str, conn, cfg: Config, now: datetime, push):
             pre = daily.fetch_premarket(cfg.all_tickers, now)
             rid, ok = daily.generate(conn, cfg, now, weekly.claude_runner(timeout=900), pre, daily.fetch_gauges(now))
             link = f"{cfg.public_url}/daily/{rid}" if cfg.public_url else f"/daily/{rid}"
-            push(Fire(f"daily:{rid}", "*", "notice", "☀️ 开盘前日报" if ok else "☀️ 日报（Claude 失败，仅数据）", link))
+            push(Fire(f"daily:{rid}", "*", "notice", "☀️ Pre-market brief" if ok else "☀️ Daily brief (Claude failed, data only)", link))
             if not ok:
                 raise RuntimeError("claude generation failed; raw bundle saved")
             return f"report={rid} premarket={sum(p['pre'] is not None for p in pre.values())}/{len(pre)}"
@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         if not cfg.ntfy_topic:
             log.error("NTFY_TOPIC not set (.env)")
             return 1
-        _pusher(cfg)(Fire("test", "*", "notice", "Invest Radar 测试", "推送通了 ✅"))
+        _pusher(cfg)(Fire("test", "*", "notice", "Invest Radar test", "Push works ✅"))
         return 0
     names = {"collect": ["prices"], "daily": DAILY,
              "brief": ["edgar", "markets", "brief"]}.get(args.cmd, [args.cmd])

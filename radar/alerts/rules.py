@@ -17,7 +17,7 @@ def _pct_change(rule: dict, quote: Quote) -> Fire | None:
         quote.ticker,
         rule["level"],
         f"{quote.ticker} {arrow}{abs(pct):.1f}%",
-        f"{quote.ticker} {quote.price:.2f}（较昨收 {quote.prev_close:.2f}，{pct:+.1f}%）",
+        f"{quote.ticker} {quote.price:.2f} (vs prev close {quote.prev_close:.2f}, {pct:+.1f}%)",
     )
 
 
@@ -28,12 +28,12 @@ def _level_cross(rule: dict, quote: Quote, levels: dict, prev_price: float | Non
     below, above = lv.get("below"), lv.get("above")
     if below is not None and prev_price >= below > quote.price:
         return Fire(rule["id"], quote.ticker, rule["level"],
-                    f"{quote.ticker} 跌破 {below}",
-                    f"{quote.ticker} {quote.price:.2f}（上次 {prev_price:.2f}）")
+                    f"{quote.ticker} fell below {below}",
+                    f"{quote.ticker} {quote.price:.2f} (last {prev_price:.2f})")
     if above is not None and prev_price <= above < quote.price:
         return Fire(rule["id"], quote.ticker, rule["level"],
-                    f"{quote.ticker} 突破 {above}",
-                    f"{quote.ticker} {quote.price:.2f}（上次 {prev_price:.2f}）")
+                    f"{quote.ticker} broke above {above}",
+                    f"{quote.ticker} {quote.price:.2f} (last {prev_price:.2f})")
     return None
 
 

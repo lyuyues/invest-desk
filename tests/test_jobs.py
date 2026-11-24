@@ -42,8 +42,8 @@ def test_heartbeat(conn):
     fires = jobs.heartbeat_fires(db.last_runs(conn), {"prices": 30, "edgar": 30, "macro": 30, "weekly": 192}, NOW)
     titles = sorted(f.title for f in fires)
     assert len(fires) == 2
-    assert any("prices" in t and "40h" in t for t in titles)
-    assert any("edgar" in t and "失败" in t for t in titles)
+    assert any("prices" in t and "40 h" in t for t in titles)
+    assert any("edgar" in t and "failed" in t for t in titles)
 
 
 def test_cluster_purchases_only_for_new_buys(conn):

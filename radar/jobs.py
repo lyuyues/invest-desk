@@ -109,7 +109,7 @@ def earnings_job(conn, cfg: Config, now: datetime, push: Push, fetch=macro.fetch
         if n["date"] >= (now.date() - timedelta(days=3)).isoformat():
             link = f"{cfg.public_url}/earnings#e-{n['ticker']}-{n['date']}" if cfg.public_url else "/earnings"
             push(Fire(f"enote:{n['ticker']}:{n['date']}", n["ticker"], "notice",
-                      f"📑 {n['ticker']} 财报摘要 · 重要度{n['level'] or '?'}", "、".join(n["tags"]) or "已生成", link))
+                      f"📑 {n['ticker']} earnings summary · Importance {n['level'] or '?'}", ", ".join(n["tags"]) or "Generated", link))
     return f"rows={len(rows)} new_reports={len(newly)} pushed={len(d.push)} notes={len(notes)}"
 
 
@@ -121,11 +121,11 @@ def heartbeat_fires(last: dict[str, sqlite3.Row], max_age_hours: dict[str, float
             continue  # never run yet (not deployed) — not an outage
         age = now - datetime.fromisoformat(r["ts"])
         if not r["ok"]:
-            out.append(Fire(f"heartbeat:{job}", "SYSTEM", "notice", f"⚙️ {job} 任务失败",
+            out.append(Fire(f"heartbeat:{job}", "SYSTEM", "notice", f"⚙️ {job} job failed",
                             (r["detail"] or "")[:300]))
         elif age > timedelta(hours=hours):
-            out.append(Fire(f"heartbeat:{job}", "SYSTEM", "notice", f"⚙️ {job} 已 {age.total_seconds() / 3600:.0f}h 未更新",
-                            f"上次成功：{r['ts']}"))
+            out.append(Fire(f"heartbeat:{job}", "SYSTEM", "notice", f"⚙️ {job} not updated for {age.total_seconds() / 3600:.0f} h",
+                            f"Last success: {r['ts']}"))
     return out
 
 

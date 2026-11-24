@@ -65,7 +65,7 @@ def compute(hist_rows: dict, cols: list[str], price: float | None, shares_m: flo
     notes = []
     b = beta if beta is not None and 0.1 <= beta <= 4 else None
     if b is None:
-        notes.append(f"β 缺失或异常，按 {BETA_DEFAULT:.1f}")
+        notes.append(f"β missing or abnormal, using {BETA_DEFAULT:.1f}")
         b = BETA_DEFAULT
     raw = b
     b = min(max(0.67 * b + 0.33, 0.3), 3.0)  # Blume adjustment: raw betas drift toward 1 (as Bloomberg shows)
@@ -79,7 +79,7 @@ def compute(hist_rows: dict, cols: list[str], price: float | None, shares_m: flo
     cash = (cash_b or 0.0) * 1000
     tax = tax_pct / 100 if tax_pct is not None and 0 <= tax_pct <= 60 else None
     if tax is None:
-        notes.append("有效税率缺失，按 21%")
+        notes.append("Effective tax rate missing, using 21%")
         tax = 0.21
     tax = min(max(tax, 0.0), 0.35)
 
@@ -87,20 +87,20 @@ def compute(hist_rows: dict, cols: list[str], price: float | None, shares_m: flo
     if rd is None:
         rd = rf + 0.015
         if debt > 0:
-            notes.append("利息费用缺失，债务成本按 10 年美债 + 1.5%")
+            notes.append("Interest expense missing, cost of debt = 10Y Treasury + 1.5%")
     rd = min(max(rd, rf), rf + 0.08)
 
     financial = is_financial(sector, industry)
     equity = price * shares_m if price and shares_m else None
     if financial:
-        notes.append("银行/保险：负债属于经营，只用股权成本，不扣净负债")
+        notes.append("Bank/insurance: liabilities are operating, so use cost of equity only and do not subtract net debt")
         we, wd, wacc, net_debt = 1.0, 0.0, re, 0.0
     elif equity and equity > 0:
         we, wd = equity / (equity + debt), debt / (equity + debt)
         wacc = we * re + wd * rd * (1 - tax)
         net_debt = debt - cash
     else:
-        notes.append("缺少市值，权重无法计算，按股权成本")
+        notes.append("Market cap missing, weights cannot be computed; using cost of equity")
         we, wd, wacc, net_debt = 1.0, 0.0, re, debt - cash
     year = cols[i_debt] if i_debt is not None and i_debt < len(cols) else None
     return {"wacc": wacc, "re": re, "rd": rd, "tax": tax, "we": we, "wd": wd, "beta": b, "beta_raw": raw, "rf": rf, "erp": erp,

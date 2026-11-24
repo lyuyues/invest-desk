@@ -130,8 +130,8 @@ def open_account(conn, strategy: dict, ticker: str, capital: float, cost: float,
     spec = strategy["spec"]
     if any(c["type"] in ("val_ge", "val_le") for side in ("entry", "exit") for c in spec[side]["conds"]) \
             and fair_for(conn, ticker, spec) is None:
-        raise ValueError(f"{ticker} 没有 DCF 估值，估值条件用不了。先在总览把它加到关注或持仓，等估值面板算出合理价"
-                         "（ETF 和自由现金流为负的公司没有 DCF）")
+        raise ValueError(f"{ticker} has no DCF valuation, so valuation conditions can’t be used. First add it to Watchlist or Holdings on the Overview page and wait for the Valuation panel to compute a fair value"
+                         " (ETFs and companies with negative free cash flow have no DCF)")
     cur = conn.execute(
         "INSERT INTO paper_accounts (strategy_id, name, spec, ticker, capital, cost, start, created, cash) "
         "VALUES (?,?,?,?,?,?,?,?,?)",
@@ -239,10 +239,10 @@ def step_account(conn, a, dates: list[date], closes: list[float], now: datetime)
                      (a["id"], d.isoformat(), px, cash + shares * px, a["capital"] * px / hold_px))
         pending, why = backtest.decide(spec, s, t, pos)
         if pending:
-            verb = "买入" if pending == "buy" else "卖出"
+            verb = "Buy" if pending == "buy" else "Sell"
             fires.append(Fire(f"paper:{a['id']}:{d.isoformat()}", a["ticker"], "notice",
-                              f"模拟盘 #{a['id']} {a['ticker']} 触发{verb}信号",
-                              f"{spec['name']}：{why}。{d.isoformat()} 收盘 {px:.2f}，下一交易日收盘按规则{verb}。", True))
+                              f"Paper account #{a['id']} {a['ticker']} triggered a {verb} signal",
+                              f"{spec['name']}: {why}. {d.isoformat()} close {px:.2f}; per the rules, {verb} at the next trading day’s close.", True))
         last = d
     conn.execute("UPDATE paper_accounts SET cash=?, shares=?, entry_px=?, peak=?, held=?, pending=?, pending_why=?, "
                  "hold_px=?, last_date=? WHERE id=?",

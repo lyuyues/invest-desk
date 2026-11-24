@@ -14,12 +14,12 @@ from radar.weekly import Runner
 
 log = logging.getLogger(__name__)
 
-PROMPT = """下面是一些美股代码和它们的英文公司简介。为每家公司写：中文名（常用译名，没有就保留英文名） 和 一句话说明它是做什么的（≤25 字，让不熟悉的人一眼看懂；ETF 就说跟踪什么）。
-严格每行一个，格式：代码 | 中文名 | 一句话
-不要其他内容。
+PROMPT = """Below are some US stock tickers and their English company descriptions. For each company write: its name (the commonly used short name) and one sentence on what it does (≤15 words, so someone unfamiliar gets it at a glance; for an ETF, say what it tracks).
+Strictly one per line, format: TICKER | Name | One-liner
+Nothing else.
 
 {items}"""
-LINE = re.compile(r"^\s*([A-Z][A-Z0-9.\-]{0,9})\s*[|｜]\s*(.+?)\s*[|｜]\s*(.+?)\s*$", re.M)
+LINE = re.compile(r"^\s*([A-Z][A-Z0-9.\-]{0,9})\s*[||]\s*(.+?)\s*[||]\s*(.+?)\s*$", re.M)
 
 
 def fetch_info(tickers: list[str], ticker_factory: Callable[[str], Any] | None = None) -> dict[str, dict]:
@@ -54,7 +54,7 @@ def fill(conn: sqlite3.Connection, tickers: list[str], now: datetime, runner: Ru
         info = fetch_info(chunk, ticker_factory)
         zh: dict[str, tuple[str, str]] = {}
         if runner is not None and info:
-            items = "\n".join(f"- {t}（{v['name']}；{v['sector']} / {v['industry']}）：{v['summary']}" for t, v in info.items())
+            items = "\n".join(f"- {t} ({v['name']}; {v['sector']} / {v['industry']}): {v['summary']}" for t, v in info.items())
             try:
                 zh = {m.group(1): (m.group(2), m.group(3)) for m in LINE.finditer(runner(PROMPT.format(items=items)))}
             except Exception as e:

@@ -1,24 +1,24 @@
 {% extends "base.html" %}
-{% block title %}宏观 · Invest Radar{% endblock %}
+{% block title %} Macro · Invest Radar {% endblock %}
 {% block content %}
 <section>
-  <h2>Fed 路径：市场预期 vs 实际</h2>
+  <h2>Fed path: market expectations vs actual</h2>
   {% if fed %}
   <div class="scroll"><table>
-    <tr><th>会议</th><th>隐含上限</th><th>实际</th><th>预期差</th></tr>
+    <tr><th>Meeting</th><th>Implied ceiling</th><th>Actual</th><th>Gap</th></tr>
     {% for f in fed %}
     <tr><td style="white-space:normal">{{ f.event }}</td>
         <td>{{ '%.2f%%' % f.implied if f.implied is not none else '—' }}</td>
-        <td>{{ '%.2f%%' % f.actual if f.actual is not none else '未开会' }}</td>
+        <td>{{ '%.2f%%' % f.actual if f.actual is not none else 'Not yet held' }}</td>
         <td>{{ '%+.0fbp' % f.gap_bp if f.gap_bp is not none else '—' }}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">隐含利率 = Kalshi “会后利率上限高于 X%” 阶梯合约的期望值。预期差 = 实际 − 会前最后一次隐含值。</div>
-  {% else %}<div class="muted">还没有预测市场数据（运行 markets 任务）</div>{% endif %}
+  <div class="muted" style="margin-top:6px">Implied rate = Kalshi “post-meeting rate ceiling above X%” ladder contracts’ expected value. Surprise = Actual − actual − last implied value before the meeting.</div>
+  {% else %}<div class="muted">No prediction market data yet (run the markets job)</div>{% endif %}
 </section>
 
 <section>
-  <h2>24 小时预期变化</h2>
+  <h2>24-hour expectation changes</h2>
   {% if movers %}
   <ul class="alerts">
     {% for c in movers %}
@@ -26,18 +26,18 @@
       <b>{{ c.label }}</b> <span class="muted">· {{ c.event }} · {{ '%.0f%%' % (c.before * 100) }} → {{ '%.0f%%' % (c.prob * 100) }} · {{ c.source }}</span></li>
     {% endfor %}
   </ul>
-  {% else %}<div class="muted">没有超过 3pp 的变化（或历史不足 24 小时）</div>{% endif %}
+  {% else %}<div class="muted">No changes above 3pp (or less than 24 hours of history)</div>{% endif %}
 </section>
 
 <section>
-  <h2>经济数据预期 <span class="chip">Kalshi</span></h2>
+  <h2>Economic data expectations <span class="chip">Kalshi</span></h2>
   {% if econ %}
   <div class="scroll"><table>
-    <tr><th>合约</th><th>市场隐含</th><th>24h 变化</th><th>结算</th></tr>
+    <tr><th>Contract</th><th>Market implied</th><th>24h change</th><th>Settles</th></tr>
     {% for e in econ %}
     <tr><td style="white-space:normal">{{ e.label }}<div class="muted">{{ e.event }}</div></td>
       {% if e.kind == 'ladder' %}
-      <td>{{ '%.2f%%' % e.implied if e.implied is not none else '—' }}{% if e.median_above is not none %}<div class="muted">≥50% 概率高于 {{ '%g' % e.median_above }}%</div>{% endif %}</td>
+      <td>{{ '%.2f%%' % e.implied if e.implied is not none else '—' }}{% if e.median_above is not none %}<div class="muted">≥50% probability above {{ '%g' % e.median_above }}%</div>{% endif %}</td>
       <td>{{ '%+.2fpp' % (e.implied - e.implied_before) if e.implied is not none and e.implied_before is not none else '—' }}</td>
       {% else %}
       <td>{{ '%.0f%%' % (e.prob * 100) }}<div class="muted">{{ e.market }}</div></td>
@@ -46,28 +46,28 @@
       <td>{{ e.close or '—' }}</td></tr>
     {% endfor %}
   </table></div>
-  <div class="muted" style="margin-top:6px">阶梯合约（“高于 X%”）的隐含值 = 各档概率的期望（与 Fed 隐含利率同一算法，近似值）；单个是/否合约显示概率。</div>
-  {% else %}<div class="muted">还没有数据（运行 markets 任务）</div>{% endif %}
+  <div class="muted" style="margin-top:6px">Ladder contracts (“above X%”) implied value = probability-weighted expectation across strikes (same method as the Fed implied rate, approximate); single yes/no contracts show the probability.</div>
+  {% else %}<div class="muted">No data yet (run the markets job)</div>{% endif %}
 </section>
 
 {% for gname, rows in groups %}
 <section>
   <h2>{{ gname }} <span class="chip">FRED</span></h2>
   <div class="scroll"><table>
-    <tr><th>指标</th><th>最新</th><th>较上期</th><th>周变化</th><th>走势</th></tr>
+    <tr><th>Indicator</th><th>Latest</th><th>vs prior</th><th>Weekly change</th><th>Trend</th></tr>
     {% for m in rows %}
     <tr><td style="white-space:normal">{{ m.label }}<div class="muted">{{ m.series }}{% if m.date %} · {{ m.date }}{% endif %}{% if m.freq %} · {{ m.freq }}{% endif %}</div></td>
-      {% if m.value is none %}<td colspan="4" class="muted">暂无</td>{% else %}
-      <td>{{ m.value|num }}{% if m.yoy is not none %}<div class="muted">同比 {{ '%.1f' % m.yoy }}%</div>{% endif %}</td>
+      {% if m.value is none %}<td colspan="4" class="muted">None yet</td>{% else %}
+      <td>{{ m.value|num }}{% if m.yoy is not none %}<div class="muted">YoY {{ '%.1f' % m.yoy }}%</div>{% endif %}</td>
       <td>{{ m.prev_change|num(true, m.value) }}{% if m.prev_date %}<div class="muted">vs {{ m.prev_date }}</div>{% endif %}</td>
-      <td>{{ m.change|num(true, m.value) if m.freq in ('日', '周') else '—' }}</td>
+      <td>{{ m.change|num(true, m.value) if m.freq in ('Daily', 'Weekly') else '—' }}</td>
       <td style="width:120px">{% if m.spark %}<svg viewBox="-1 -2 122 32" aria-hidden="true"><polyline points="{{ m.spark }}" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>{% endif %}</td>
       {% endif %}
     </tr>
     {% endfor %}
   </table></div>
-  {% if gname == 'Nowcast' %}<div class="muted" style="margin-top:6px">GDPNow 是当季 GDP 增速（年化）的实时估计，同一季度内随数据发布不断修订；“较上期”= 较上一季度的最终估计。</div>{% endif %}
-  {% if gname == '金融条件' %}<div class="muted" style="margin-top:6px">NFCI / 圣路易斯金融压力指数：0 = 历史平均，正值 = 比平均更紧 / 压力更大。</div>{% endif %}
+  {% if gname == 'Nowcast' %}<div class="muted" style="margin-top:6px">GDPNow is a real-time estimate of current-quarter GDP growth (annualized), revised as data come out during the quarter; “vs prior”= the final estimate for the previous quarter.</div>{% endif %}
+  {% if gname == 'Financial conditions' %}<div class="muted" style="margin-top:6px">NFCI / St. Louis Fed Financial Stress Index: 0 = historical average, positive = tighter / more stress than average.</div>{% endif %}
 </section>
 {% endfor %}
 

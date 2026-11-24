@@ -1,4 +1,4 @@
-"""Market-wide portfolio paper accounts (策略模拟 · 全市场): scan every US-listed stock above a market-cap floor,
+"""Market-wide portfolio paper accounts (Strategy sim · Market-wide): scan every US-listed stock above a market-cap floor,
 keep a DCF fair value for each, and let a valuation strategy hold up to N of them. Educational; no real orders.
 
 Daily after the close (job `scan`):
@@ -8,7 +8,7 @@ Daily after the close (job `scan`):
   3. fair values — DCF engine for the stalest names within a time budget (fundamentals move quarterly, so a
                  rolling refresh every ~week is enough; the first full pass takes a few runs)
 Same execution rule as single-stock paper accounts: a signal at day t's close fills at day t+1's close.
-Fair value: your own DCF inputs for names on the 估值 panel, else the automatic engine value.
+Fair value: your own DCF inputs for names on the Valuation panel, else the automatic engine value.
 """
 from __future__ import annotations
 
@@ -77,12 +77,12 @@ def init(conn) -> None:
 def check_spec(spec: dict) -> None:
     bad = [c["type"] for side in ("entry", "exit") for c in spec[side]["conds"] if c["type"] not in ALLOWED]
     if bad:
-        raise ValueError("全市场组合只支持估值 / 市值、价格动量条件和止损、止盈、移动止盈、持有天数，"
-                         f"不支持：{'、'.join(backtest.CONDS[b][0].split('{')[0].strip() for b in bad)}")
+        raise ValueError("Market-wide portfolios only support valuation / market cap, price momentum conditions and stop loss, take profit, trailing take profit, holding days; "
+                         f"unsupported: {', '.join(backtest.CONDS[b][0].split('{')[0].strip() for b in bad)}")
     if not any(c["type"] == "val_ge" for c in spec["entry"]["conds"]):
-        raise ValueError("全市场组合的买入条件里需要一个「DCF 上涨空间 ≥ X%」")
+        raise ValueError("A market-wide portfolio needs a buy condition “DCF upside ≥ X%”")
     if spec["entry"]["mode"] != "all" and any(c["type"] in PRICE_CONDS for c in spec["entry"]["conds"]):
-        raise ValueError("买入条件里有动量 / 价格条件时，要选「全部满足」")
+        raise ValueError("When buy conditions include momentum / price conditions, choose “All met”")
 
 
 def value_only(spec: dict) -> dict:
@@ -197,7 +197,7 @@ def refresh_fair(conn, now: datetime, budget_s: float = 2400, limit: int = 2000,
             fair, margin, g1, rr = compute(r["ticker"], r["price"], r["mcap"])
             conn.execute("INSERT OR REPLACE INTO scan_fair VALUES (?,?,?,?,?,?,?)",
                          (r["ticker"], now.isoformat(timespec="seconds"), fair if fair and fair > 0 else None,
-                          None if fair and fair > 0 else "DCF 为负（自由现金流为负）", margin, g1, rr))
+                          None if fair and fair > 0 else "Negative DCF (negative free cash flow)", margin, g1, rr))
             ok += 1
         except Exception as e:
             conn.execute("INSERT OR REPLACE INTO scan_fair VALUES (?,?,?,?,?,?,?)",
@@ -218,7 +218,7 @@ def coverage(conn) -> dict:
 
 
 def fair_map(conn) -> dict[str, float]:
-    """Fair value per ticker: your own DCF (估值 panel) wins over the scan's automatic one."""
+    """Fair value per ticker: your own DCF (Valuation panel) wins over the scan's automatic one."""
     from radar import valuation
     out = {r["ticker"]: r["fair"] for r in conn.execute("SELECT ticker, fair FROM scan_fair WHERE fair IS NOT NULL")}
     mine = {r["ticker"] for r in conn.execute("SELECT ticker FROM valuation_inputs")}
@@ -448,12 +448,12 @@ def run_job(conn, now: datetime, push=None, screener=None, spy_quote=None, compu
                 from radar.models import Fire
                 parts = []
                 if res["fills"]:
-                    parts.append("成交：" + "，".join(f"{'买' if f[1] == 'buy' else '卖'} {f[0]} @ {f[2]:.2f}" for f in res["fills"]))
+                    parts.append("Fills: " + ", ".join(f"{'Buy' if f[1] == 'buy' else 'Sell'} {f[0]} @ {f[2]:.2f}" for f in res["fills"]))
                 if res["buys"] or res["sells"]:
-                    parts.append("新信号（下一交易日收盘成交）：" + "，".join(
-                        [f"买 {t}" for t in res["buys"]] + [f"卖 {t}" for t in res["sells"]]))
+                    parts.append("New signals (fill at next trading day close): " + ", ".join(
+                        [f"Buy {t}" for t in res["buys"]] + [f"Sell {t}" for t in res["sells"]]))
                 try:
-                    push(Fire(f"port:{a['id']}:{bar}", "*", "notice", f"全市场模拟 #{a['id']} {a['name']}", "；".join(parts), True))
+                    push(Fire(f"port:{a['id']}:{bar}", "*", "notice", f"Market-wide sim #{a['id']} {a['name']}", "; ".join(parts), True))
                 except Exception:
                     pass
         msgs.append(f"accounts={n}")

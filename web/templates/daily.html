@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}日报 · Invest Radar{% endblock %}
+{% block title %} Daily brief · Invest Radar {% endblock %}
 {% block content %}
 <section style="display:flex;align-items:center;gap:10px">
-  <div class="muted" style="flex:1">每个交易日美东 9:25（开盘前 5 分钟）自动拉数据并生成，约 3 分钟后推送。</div>
-  {% if running %}<span class="muted">生成中…（约 3 分钟，刷新查看）</span>
-  {% else %}<form method="post" action="/daily/run"><button class="chipbtn">立即生成</button></form>{% endif %}
+  <div class="muted" style="flex:1">Fetches data and generates automatically at 9:25 ET each trading day (5 minutes before the open); pushed about 3 minutes later.</div>
+  {% if running %}<span class="muted">Generating... (about 3 minutes, refresh to view)</span>
+  {% else %}<form method="post" action="/daily/run"><button class="chipbtn">Generate now</button></form>{% endif %}
 </section>
 {% if cur %}
 <section class="prose">
@@ -12,15 +12,15 @@
   {{ cur.html }}
 </section>
 {% else %}
-<section><div class="muted">还没有日报。</div></section>
+<section><div class="muted">No daily brief yet.</div></section>
 {% endif %}
 {% if rows|length > 1 %}
 <section>
-  <h2>往期</h2>
+  <h2>Archive</h2>
   <ul class="alerts">
     {% for r in rows %}
     <li><a href="/daily/{{ r.id }}" style="color:var(--accent);{{ 'font-weight:700' if cur and r.id == cur.id else '' }};text-decoration:none">{{ r.title }}</a>
-      <span class="muted">· {{ r.when }}{{ '' if r.ok else ' · 仅数据' }}</span></li>
+      <span class="muted">· {{ r.when }}{{ '' if r.ok else ' · data only' }}</span></li>
     {% endfor %}
   </ul>
 </section>

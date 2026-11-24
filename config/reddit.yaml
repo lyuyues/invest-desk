@@ -1,14 +1,14 @@
-# Reddit：公开 RSS（无需账号 / API key）。群体情绪，噪音大，只作参考。
-# 未登录的 RSS 限速约 1 次/分钟，所以只拉少量"多版块合并"的 listing；搜索 RSS（search.rss）在服务器上返回 403，
-# 所以个股提及 = 在这些 listing 的标题+正文里匹配跟踪的 ticker（$NVDA 或独立的大写 NVDA）。
+# Reddit: public RSS (no account / API key needed). Crowd sentiment, very noisy, for reference only.
+# Logged-out RSS is rate-limited to about 1 request/minute, so we only pull a few"multi-subreddit" listings; search RSS (search.rss) returns 403 on the server,
+# so ticker mentions = matching tracked tickers in these listings’ titles + bodies ($NVDA or a standalone uppercase NVDA).
 feeds:
-  # 宏观 / 大盘：几个版块当天最热
+  # Macro / market: top posts of the day from a few subreddits
   - {name: top, path: "r/economics+investing+stocks+StockMarket+wallstreetbets/top/.rss?t=day&limit=100"}
-  # 个股提及：最新帖（100 条约覆盖 1–2 天，每 4 小时拉一次不会漏）
+  # Ticker mentions: newest posts (100 posts cover about 1–2 days; pulling every 4 hours misses nothing)
   - {name: new, path: "r/stocks+investing+StockMarket+wallstreetbets+options+ValueInvesting/new/.rss?limit=100"}
-every_hours: 4          # 网页进程内调度（web/scheduler.py）
-min_interval_s: 61      # 两次请求之间的间隔（遵守 x-ratelimit-reset）
-# 这些 ticker 和常见英文词 / 缩写撞车，只认 $ 前缀（≤2 个字母的 ticker 本来就只认 $ 前缀）
+every_hours: 4          # scheduled inside the web process (web/scheduler.py)
+min_interval_s: 61      # interval between requests (respects x-ratelimit-reset)
+# these tickers collide with common English words / abbreviations; only match with a $ prefix (tickers of ≤2 letters already require the $ prefix)
 require_dollar: []
-# 额外别名（不区分大小写的整词匹配），例如 {GOOGL: [Google, Alphabet]}
+# Extra aliases (case-insensitive whole-word match), e.g. {GOOGL: [Google, Alphabet]}
 aliases: {}

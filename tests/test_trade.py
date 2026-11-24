@@ -107,22 +107,22 @@ def client(tmp_path, monkeypatch):
 
 
 def test_trade_pages(client):
-    r = client.post("/trade", data={"name": "练习", "capital": "50000", "cost": "5"}, follow_redirects=False)
+    r = client.post("/trade", data={"name": "Practice", "capital": "50000", "cost": "5"}, follow_redirects=False)
     loc = r.headers["location"]
     assert client.get("/trade", follow_redirects=False).headers["location"] == loc   # single account → straight in
-    r = client.post(loc + "/order", data=order(qty="10", plan_stop="95", reason="突破"), follow_redirects=True)
-    assert "已成交" in r.text and "AAA" in r.text and "突破" in r.text
+    r = client.post(loc + "/order", data=order(qty="10", plan_stop="95", reason="broke above"), follow_redirects=True)
+    assert "Filled" in r.text and "AAA" in r.text and "broke above" in r.text
     r = client.post(loc + "/order", data=order(reason=""), follow_redirects=True)
-    assert "为什么" in r.text
+    assert "Why" in r.text
     assert client.get("/trade/quote?t=AAA").json()["price"] == 100
     assert client.get("/trade/quote?t=ZZZ").status_code == 404
-    r = client.post(loc + "/order", data=order(side="sell", qty="10", reason="到目标"), follow_redirects=True)
-    assert "复盘" in r.text and "已完成交易" in r.text
+    r = client.post(loc + "/order", data=order(side="sell", qty="10", reason="Target reached"), follow_redirects=True)
+    assert "Review" in r.text and "Closed trades" in r.text
 
 
 def test_friendly_errors(conn):
     aid = trade.open_account(conn, "t", 10000, 0.0, OPEN, quote=q)
-    with pytest.raises(trade.OrderError, match="没有 AAA 的持仓"):
+    with pytest.raises(trade.OrderError, match="You don’t hold AAA"):
         trade.place(conn, aid, order(side="sell"), OPEN, quote=q)
     with pytest.raises(trade.OrderError, match="no quote"):
         trade.place(conn, aid, order(ticker="ZZZ"), OPEN, quote=q)
@@ -130,7 +130,7 @@ def test_friendly_errors(conn):
     class Bad:
         def __init__(self, t):
             self.fast_info = {}
-    with pytest.raises(ValueError, match="代码写对了吗"):
+    with pytest.raises(ValueError, match="Is the ticker right"):
         trade.live_quote("MFST", ticker_factory=Bad)
 
 

@@ -5,7 +5,7 @@
   <text x="-6" y="{{ t.y + 3 }}" text-anchor="end">{{ t.label }}</text>{% endfor %}
   {% for t in c.xt %}<text x="{{ t.x }}" y="{{ c.h + 16 }}" text-anchor="middle">{{ t.label }}</text>{% endfor %}
   {% if c.cut_x %}<line x1="{{ c.cut_x }}" x2="{{ c.cut_x }}" y1="0" y2="{{ c.h }}" class="cut"/>
-  <text x="{{ c.cut_x + 4 }}" y="8" class="cutl">样本外 →</text>{% endif %}
+  <text x="{{ c.cut_x + 4 }}" y="8" class="cutl">Out-of-sample →</text>{% endif %}
   {% for ln in c.lines %}<polyline points="{{ ln.pts }}" fill="none" stroke="{{ ln.color }}" stroke-width="{{ 1.4 if loop.first and c.lines|length > 1 else 1.8 }}" vector-effect="non-scaling-stroke"/>{% endfor %}
   {% for m in c.marks %}{% if m.side == 'buy' %}<path d="M{{ m.x }},{{ m.y + 3 }} l-4,7 h8 z" class="mbuy"><title>{{ m.tip }}</title></path>{% else %}<path d="M{{ m.x }},{{ m.y - 3 }} l-4,-7 h8 z" class="msell"><title>{{ m.tip }}</title></path>{% endif %}{% endfor %}
 </svg>
