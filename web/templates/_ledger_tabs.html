@@ -1,0 +1,14 @@
+<div class="ltabs">
+  {% for key, label, href in [('month','Month','/ledger'),('year','Year','/ledger?y=latest'),('tx','Transactions','/ledger/tx'),('accounts','Account','/ledger/accounts'),('fi','Financial independence','/ledger/fi'),('reports','Reports','/ledger/reports'),('todo','Monthly to-dos','/ledger/todo'),('sync','Import','/ledger/sync')] %}
+  <a href="{{ href }}" class="{{ 'on' if ltab == key else '' }}">{{ label }}</a>
+  {% endfor %}
+  <form method="post" action="/ledger/logout" style="margin-left:auto"><button class="chipbtn" title="locked">🔒 locked</button></form>
+</div>
+{% if sync_age is not none and sync_age >= 7 %}
+<div class="warn lremind">⏰ It’s been {{ sync_age }} days since the last import. Export a CSV from your bank or bookkeeping app and upload it under <a href="/ledger/sync">Import</a>.</div>
+{% endif %}
+{% if due and ltab != 'todo' %}
+<div class="lremind">📌 To do this month: {{ due|length }} left:
+  {% for t in due %}<form method="post" action="/ledger/todo/{{ t.id }}/done" style="display:inline"><input type="hidden" name="back" value="{{ request.url.path }}"><button class="chipbtn" title="Mark done">☐ {{ t.title }}</button></form> {% endfor %}
+  <a href="/ledger/todo">View</a></div>
+{% endif %}

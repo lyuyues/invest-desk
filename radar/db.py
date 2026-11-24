@@ -195,6 +195,20 @@ CREATE TABLE IF NOT EXISTS reddit_mentions (
     PRIMARY KEY (post_id, ticker)
 );
 CREATE INDEX IF NOT EXISTS reddit_mentions_ticker ON reddit_mentions (ticker, published);
+CREATE TABLE IF NOT EXISTS news_items (
+    id TEXT PRIMARY KEY,          -- hash of the normalized headline (same story from two feeds = one row)
+    source TEXT NOT NULL,         -- feed name / outlet
+    title TEXT NOT NULL,
+    link TEXT NOT NULL,
+    published TEXT NOT NULL,      -- ISO UTC
+    fetched TEXT NOT NULL,
+    judged INTEGER NOT NULL DEFAULT 0,   -- 1 = scored (or skipped as too old)
+    score INTEGER,                -- 0 noise … 3 likely to move a holding / the market now
+    tickers TEXT,                 -- comma-separated
+    direction TEXT,
+    why TEXT
+);
+CREATE INDEX IF NOT EXISTS news_items_pub ON news_items (published);
 CREATE TABLE IF NOT EXISTS reports (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL,

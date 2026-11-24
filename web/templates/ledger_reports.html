@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %} Household reports · Invest Radar {% endblock %}
+{% block content %}
+{% set ltab = 'reports' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+{% if report %}
+<section>
+  <div class="muted">{{ report.ym }} · generated {{ report.created[:16].replace('T', ' ') }} UTC · data through {{ report.data_until or '—' }}{% if not report.ok %} · <span class="down">Claude failed, data only</span>{% endif %}</div>
+  <div class="prose">{{ html }}</div>
+  {% if checks %}
+  <h2 id="checks">Needs checking · my replies</h2>
+  <p class="muted">Replies go into next month’s report: Claude won’t raise items you’ve handled or explained.</p>
+  {% for c in checks if c.idx > 0 %}
+  <form method="post" action="/ledger/reports/{{ report.id }}/checks/{{ c.id }}" class="check {{ c.status }}" id="c{{ c.id }}">
+    <div><b>{{ c.idx }}.</b> {{ c.text }}</div>
+    <textarea name="reply" rows="2" placeholder="My reply (e.g. #1001 is the furniture store’s final payment, unrelated to the deposit)">{{ c.reply or '' }}</textarea>
+    <div class="crow">{% for k, z in status_zh.items() %}<label><input type="radio" name="status" value="{{ k }}" {{ 'checked' if c.status == k else '' }}> {{ z }}</label>{% endfor %}
+      <button class="chipbtn">Save</button>{% if c.updated %}<span class="muted">Saved {{ c.updated[5:16].replace('T', ' ') }}</span>{% endif %}</div>
+  </form>
+  {% endfor %}
+  {% for c in checks if c.idx == 0 %}
+  <form method="post" action="/ledger/reports/{{ report.id }}/checks/{{ c.id }}" class="check" id="c{{ c.id }}">
+    <div><b>Overall note</b> <span class="muted"> (other additions or corrections to this report)</span></div>
+    <textarea name="reply" rows="3">{{ c.reply or '' }}</textarea><input type="hidden" name="status" value="open">
+    <div class="crow"><button class="chipbtn">Save</button>{% if c.updated %}<span class="muted">Saved {{ c.updated[5:16].replace('T', ' ') }}</span>{% endif %}</div>
+  </form>
+  {% endfor %}
+  {% endif %}
+  {% if raw %}<details><summary class="muted">Raw summary data</summary><div class="prose">{{ raw }}</div></details>{% endif %}
+</section>
+{% endif %}
+<section>
+  <h2>household finance report</h2>
+  <p class="muted">Generated automatically at 9 pm (local time) on the last day of each month, with a push notification (no amounts in it). It uses whatever has been imported by then; import before the month ends for a fuller picture, or regenerate by hand after an import.</p>
+  <form method="post" action="/ledger/reports/run" class="addform">
+    <input name="ym" placeholder="2026-11" size="8" pattern="\d{4}-\d{2}">
+    <button {{ 'disabled' if running else '' }}>{{ 'Generating… (about 1–2 minutes, refresh to see)' if running else 'Generate / regenerate' }}</button>
+  </form>
+  {% if reports %}<div class="scroll"><table class="fin">
+    <tr><th>Month</th><th>Generated (UTC)</th><th>Data through</th><th></th></tr>
+    {% for r in reports %}<tr class="{{ 'on' if report and report.id == r.id else '' }}"><td><a href="/ledger/reports/{{ r.id }}">{{ r.ym }}</a></td>
+      <td>{{ r.created[:16].replace('T', ' ') }}</td><td>{{ r.data_until or '—' }}</td><td>{{ '' if r.ok else '⚠️ data only' }}</td></tr>{% endfor %}
+  </table></div>{% else %}<p class="muted">No reports yet.</p>{% endif %}
+</section>
+{% endblock %}

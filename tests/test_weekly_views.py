@@ -61,7 +61,7 @@ def test_week_moves(conn):
 
 def test_bundle_contains_sections(conn):
     b = weekly.build_bundle(conn, cfg(), NOW)
-    for s in ["MSFT", "-10.0%", "Officer/director change", "Buy 1 trade(s)", "Upcoming 2026-11-12", "10Y Treasury",
+    for s in ["MSFT", "-10.0%", "Officer/director change", "Buy 1 transaction(s)", "Upcoming 2026-11-12", "10Y Treasury",
               "Gap +0bp", "Above 3.50%", "Thesis summaries"]:
         assert s in b, s
 

@@ -93,6 +93,9 @@ def page_context(conn: sqlite3.Connection, page: str) -> str:
                      f"Upside {r['upside'] and round(r['upside'])}%" + (
                 f"; auto assumptions rr {a['rr']:.1%} Terminal {a['terminal']:.1%} FCF margin {a['fcf_margin']:.1%} analyst revenue {a['analyst']} starting growth {a['g_start']:.1%}; mine {v['mine']}" if a else f"; {r['error']}"))
         return "\n".join(L)
+    if page.startswith("/ledger"):
+        return ("The user is on the Ledger page (it has its own password; ledger data is not sent to the assistant — for an analysis, ask the user to paste the numbers,"
+                "or to use the ledger assistant on the right of the ledger pages once unlocked). To import transactions, upload a CSV on the “Import” page.")
     if page == "/notes":
         from radar import notes
         mine = notes.for_prompt(conn, datetime.now(timezone.utc), days=365, total=40)

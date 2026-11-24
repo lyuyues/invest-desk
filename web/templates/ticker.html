@@ -87,7 +87,7 @@
   {% if alerts %}
   <ul class="alerts">
     {% for a in alerts %}
-    <li>{{ a.icon }} <b>{{ a.title }}</b> <span class="muted">· {{ a.when }}</span></li>
+    <li>{{ a.icon }} {% if a.href %}<a href="{{ a.href }}"><b>{{ a.title }}</b></a>{% else %}<b>{{ a.title }}</b>{% endif %} <span class="muted">· {{ a.when }}</span></li>
     {% endfor %}
   </ul>
   {% else %}<div class="muted">None yet</div>{% endif %}

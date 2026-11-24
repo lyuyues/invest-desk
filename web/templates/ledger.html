@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %} Ledger · Invest Radar {% endblock %}
+{% macro usd(x) %}{{ '${:,.0f}'.format(x) if x is not none else '—' }}{% endmacro %}
+{% macro catbars(cats, total, show_prev, v_period) %}
+  {% set mx = (cats[0].usd if cats else 1) or 1 %}
+  {% for g in cats %}
+  <details class="cbar"><summary>
+    <span class="cname">{{ g.cat }}</span>
+    <span class="ctrack"><span style="width:{{ [100 * g.usd / mx, 0]|max }}%"></span></span>
+    <span class="cval">{{ usd(g.usd) }}</span>
+    <span class="muted cpct">{{ '%.0f' % (100 * g.usd / total) if total else 0 }}%</span>
+    {% if show_prev %}{% set d = g.usd - g.prev %}<span class="cdelta {{ 'down' if d > 0 else 'up' }}">{% if g.prev > 50 %}{{ '%+.0f' % (100 * d / g.prev) }}%{% endif %}</span>{% endif %}
+  </summary>
+  <div class="subs">{% for s, v in g.subs %}<a href="/ledger/tx?cat={{ g.cat|urlencode }}&m={{ v_period }}&q={{ s|urlencode }}">{{ s or '—' }}</a> {{ usd(v) }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+  </details>
+  {% endfor %}
+{% endmacro %}
+{% block content %}
+{% set ltab = tab %}
+{% include "_ledger_tabs.html" %}
+{% if st.n == 0 %}
+<section><p>The ledger is empty. Go to <a href="/ledger/sync">Import</a> to upload a CSV, or try the demo data first:</p><form method="post" action="/ledger/demo"><button class="chipbtn">Load demo data (a fictional household)</button></form><p></p></section>
+{% elif tab == 'month' %}
+<section>
+  <div class="lhead"><a href="/ledger?m={{ prev }}">‹</a><h2>{{ v.month }}</h2>{% if not is_current %}<a href="/ledger?m={{ next }}">›</a>{% endif %}
+    {% if v.partial %}<span class="chip">In progress · day {{ v.day }}/{{ v.days }}, compared with the same days last month</span>{% endif %}</div>
+  <div class="kpis">
+    <div><div class="muted">Expense {{ ' (so far)' if v.partial else '' }}</div><b>{{ usd(v.flows.expense) }}</b>
+      <div class="muted">{{ v.prev_label }} {{ usd(v.prev_flows.expense) }}{% if v.avg12 and not v.partial %} · 12-mo avg {{ usd(v.avg12) }}{% endif %}</div></div>
+    <div><div class="muted">Income {{ ' (so far)' if v.partial else '' }}</div><b>{{ usd(v.flows.income) }}</b><div class="muted">{{ v.prev_label }} {{ usd(v.prev_flows.income) }}</div></div>
+    <div><div class="muted">Surplus</div><b class="{{ 'up' if v.flows.income >= v.flows.expense else 'down' }}">{{ usd(v.flows.income - v.flows.expense) }}</b></div>
+  </div>
+  <div class="muted">By currency: {% for c, x in v.flows.by_ccy.items() %}{{ c }} Expense {{ '{:,.0f}'.format(x.expense) }} / Income {{ '{:,.0f}'.format(x.income) }}{% if not loop.last %}; {% endif %}{% endfor %} (totals converted to USD at current rates)</div>
+</section>
+<section>
+  <h2>Last 13 months</h2>
+  {% set mx = [v.series|map(attribute='expense')|max, v.series|map(attribute='income')|max, 1]|max %}
+  <svg class="mbars" viewBox="0 0 {{ v.series|length * 30 }} 124" preserveAspectRatio="none">
+    {% for s in v.series %}
+    <a href="/ledger?m={{ s.month }}"><g><title>{{ s.month }} Expense {{ usd(s.expense) }} Income {{ usd(s.income) }}</title>
+      <rect x="{{ loop.index0 * 30 + 4 }}" y="{{ 104 - 100 * s.income / mx }}" width="10" height="{{ 100 * s.income / mx }}" class="bi"/>
+      <rect x="{{ loop.index0 * 30 + 15 }}" y="{{ 104 - 100 * s.expense / mx }}" width="10" height="{{ 100 * s.expense / mx }}" class="be {{ 'cur' if s.month == v.month else '' }}"/>
+      <text x="{{ loop.index0 * 30 + 15 }}" y="117" text-anchor="middle">{{ s.month[5:] }}</text></g></a>
+    {% endfor %}
+  </svg>
+  <div class="muted"><span class="dot bi"></span>Income <span class="dot be"></span>Expenses · click a bar to open that month</div>
+</section>
+<section>
+  <h2>Spending by category <span class="muted"> (right column = vs {{ v.prev_label }})</span></h2>
+  {{ catbars(v.cats, v.flows.expense, true, v.month) }}
+</section>
+<section>
+  <h2>Large expenses</h2>
+  <div class="scroll"><table>{% for t in v.big %}
+    <tr><td>{{ t.occurred_at[5:10] }}</td><td>{{ t.cat }}<span class="muted"> · {{ t.sub or '' }}</span></td>
+      <td>{{ t.note or '' }}</td><td class="num">{{ t.currency }} {{ '{:,.2f}'.format(t.amount) }}</td></tr>
+  {% endfor %}</table></div>
+  <a href="/ledger/tx?m={{ v.month }}">All transactions this month →</a>
+</section>
+{% if v.income_cats %}<section><h2>Income sources</h2>{{ catbars(v.income_cats, v.flows.income, false, v.month) }}</section>{% endif %}
+{% else %}
+{% macro dlt(now, last, good_up=false) %}{% if last %}{% set pct = 100 * (now - last) / last %}<span class="{{ ('up' if pct >= 0 else 'down') if good_up else ('down' if pct > 0 else 'up') }}">{{ '%+.0f' % pct }}%</span>{% else %}<span class="muted">—</span>{% endif %}{% endmacro %}
+{% macro pct(x) %}{{ '%.0f%%' % x if x is not none else '—' }}{% endmacro %}
+<section>
+  <div class="lhead">{% for yy in years[:8] %}<a href="/ledger?y={{ yy }}" class="{{ 'on' if yy == v.year else '' }}">{{ yy }}</a>{% endfor %}</div>
+  <div class="muted" style="margin-top:6px">{% if v.current %}{{ v.year }}  year to date (through {{ v.span[1] }}), compared with {{ v.year - 1 }}  same period {% else %}{{ v.year }}  full year, compared with {{ v.year - 1 }}  full year {% endif %}</div>
+  <div class="kpis">
+    <div><div class="muted">Expense</div><b>{{ usd(v.flows.expense) }}</b><div class="muted">Last year {{ usd(v.last.expense) }} {{ dlt(v.flows.expense, v.last.expense) }}</div></div>
+    <div><div class="muted">Income</div><b>{{ usd(v.flows.income) }}</b><div class="muted">Last year {{ usd(v.last.income) }} {{ dlt(v.flows.income, v.last.income, true) }}</div></div>
+    <div><div class="muted">Savings rate</div><b class="{{ 'up' if (v.rate or 0) >= 0 else 'down' }}">{{ pct(v.rate) }}</b><div class="muted">Surplus {{ usd(v.flows.income - v.flows.expense) }} · Last year {{ pct(v.last_rate) }}</div></div>
+  </div>
+</section>
+{% if v.highlights %}<section><h2>Highlights</h2><ul class="hl">{% for h in v.highlights %}<li>{{ h }}</li>{% endfor %}</ul>
+  <div class="muted">For more, ask the assistant on the right (e.g.“Why is daily spending so much lower this year?”).</div></section>{% endif %}
+<section>
+  <h2>Where the money goes</h2>
+  <div class="scroll"><table class="fin">
+    <tr><th>Group</th><th class="num">This year</th><th class="num">Share</th><th class="num">Same period last year</th><th class="num">Change</th></tr>
+    {% for k, now, last in v.buckets %}<tr><td>{{ k }}</td><td class="num">{{ usd(now) }}</td>
+      <td class="num">{{ '%.0f%%' % (100 * now / v.flows.expense) if v.flows.expense else '—' }}</td>
+      <td class="num">{{ usd(last) }}</td><td class="num">{{ dlt(now, last) }}</td></tr>{% endfor %}
+  </table></div>
+  <div class="muted">Daily spending = What’s left after property, mortgages, taxes and gifts; this year’s monthly average {{ usd(v.daily_avg) }}.</div>
+</section>
+<section>
+  <h2>By month</h2>
+  {% set mx = [v.months|map(attribute='expense')|max, v.months|map(attribute='income')|max, v.months|map(attribute='last_expense')|max, 1]|max if v.months else 1 %}
+  <svg class="mbars" viewBox="0 0 {{ 12 * 30 }} 124" preserveAspectRatio="none">
+    {% for s in v.months %}
+    <a href="/ledger?m={{ s.month }}"><g><title>{{ s.month }} Income {{ usd(s.income) }} Expense {{ usd(s.expense) }} (daily {{ usd(s.daily) }}) same month last year {{ usd(s.last_expense) }}</title>
+      <rect x="{{ loop.index0 * 30 + 4 }}" y="{{ 104 - 100 * s.income / mx }}" width="10" height="{{ 100 * s.income / mx }}" class="bi"/>
+      <rect x="{{ loop.index0 * 30 + 15 }}" y="{{ 104 - 100 * s.expense / mx }}" width="10" height="{{ 100 * s.expense / mx }}" class="be"/>
+      <rect x="{{ loop.index0 * 30 + 15 }}" y="{{ 104 - 100 * s.daily / mx }}" width="10" height="{{ 100 * s.daily / mx }}" class="bd"/>
+      <line x1="{{ loop.index0 * 30 + 13 }}" x2="{{ loop.index0 * 30 + 27 }}" y1="{{ 104 - 100 * s.last_expense / mx }}" y2="{{ 104 - 100 * s.last_expense / mx }}" class="bl"/>
+      <text x="{{ loop.index0 * 30 + 15 }}" y="117" text-anchor="middle">{{ s.month[5:] }}</text></g></a>
+    {% endfor %}
+  </svg>
+  <div class="muted"><span class="dot bi"></span>Income <span class="dot be"></span>Expenses (dark = daily spending)<span class="dot bl"></span>Same month last year{% if v.peak %} · highest {{ v.peak.month[5:] }} Monthly {{ usd(v.peak.expense) }}{% endif %}</div>
+</section>
+<section>
+  <h2>Categories that changed most vs last year</h2>
+  <div class="scroll"><table class="fin">
+    <tr><th>Category</th><th class="num">This year</th><th class="num">Same period last year</th><th class="num">Difference</th></tr>
+    {% for d in v.deltas %}<tr><td><a href="/ledger/tx?cat={{ d.cat|urlencode }}&m={{ v.year }}">{{ d.cat }}</a></td><td class="num">{{ usd(d.now) }}</td><td class="num">{{ usd(d.last) }}</td>
+      <td class="num {{ 'down' if d.d > 0 else 'up' }}">{{ '%+s' % ('{:,.0f}'.format(d.d)) }}</td></tr>{% endfor %}
+  </table></div>
+</section>
+{% if v.properties %}
+<section>
+  <h2>Properties</h2>
+  <div class="scroll"><table class="fin">
+    <tr><th>Properties</th><th class="num">Expense</th><th class="num">of which mortgage</th><th class="num">Rental income</th><th class="num">net cash flow</th></tr>
+    {% for h in v.properties %}<tr><td>{{ h.name }}</td><td class="num">{{ usd(h.cost) }}</td><td class="num">{{ usd(h.mortgage) }}</td>
+      <td class="num">{{ usd(h.rent) if h.rent else '—' }}</td><td class="num {{ 'up' if h.net >= 0 else 'down' }}">{{ usd(h.net) }}</td></tr>{% endfor %}
+  </table></div>
+  <div class="muted">Expense = “X Home” category (mortgage, property tax, repairs, HOA etc.); rent = income subcategories that name the property. Another {{ usd(v.buckets[1][1]) }} is under “Finance & insurance · Mortgage payment” and not assigned to a property.</div>
+</section>
+{% endif %}
+<section>
+  <h2>By year</h2>
+  <div class="scroll"><table class="fin">
+    <tr><th>Year</th><th class="num">Income</th><th class="num">Expense</th><th class="num">Surplus</th><th class="num">Savings rate</th></tr>
+    {% for r in v.years|reverse %}<tr class="{{ 'on' if r.year == v.year else '' }}"><td><a href="/ledger?y={{ r.year }}">{{ r.year }}</a>{% if r.ytd %} <span class="muted">so far</span>{% endif %}</td>
+      <td class="num">{{ usd(r.income) }}</td><td class="num">{{ usd(r.expense) }}</td><td class="num">{{ usd(r.income - r.expense) }}</td><td class="num">{{ pct(r.rate) }}</td></tr>{% endfor %}
+  </table></div>
+</section>
+<section>
+  <h2>Spending by account owner</h2>
+  {% for o, x in v.owners.items() %}<div>{{ o }}: {{ usd(x) }} <span class="muted">{{ '%.0f%%' % (100 * x / v.flows.expense) if v.flows.expense else '' }}</span></div>{% endfor %}
+</section>
+<section>
+  <h2>10 largest expenses of the year</h2>
+  <div class="scroll"><table class="fin">{% for t in v.big %}
+    <tr><td>{{ t.occurred_at[:10] }}</td><td>{{ t.cat }}<span class="muted"> · {{ t.sub or '' }}</span></td><td>{{ t.note or '' }}</td><td class="num">{{ t.currency }} {{ '{:,.0f}'.format(t.amount) }}</td></tr>
+  {% endfor %}</table></div>
+</section>
+<section><h2>Spending by category</h2>{{ catbars(v.cats, v.flows.expense, false, v.year) }}</section>
+<section><h2>Income sources</h2>{{ catbars(v.income_cats, v.flows.income, false, v.year) }}</section>
+{% endif %}
+{% if st.n %}<div class="muted">Total {{ '{:,}'.format(st.n) }} transaction(s) · {{ st.first[:10] }} onward · last import {{ st.last_sync.imported_at[:16] if st.last_sync else '—' }}</div>{% endif %}
+{% endblock %}

@@ -47,6 +47,11 @@ from web.trade_routes import router as _trade_router  # noqa: E402
 
 app.include_router(_trade_router)
 
+# Ledger / financial independence: household ledger behind its own password
+from web.ledger_routes import router as _ledger_router  # noqa: E402
+
+app.include_router(_ledger_router)
+templates.env.globals["ledger_nav"] = [("ledger", "Ledger", "/ledger")]
 
 LEVEL_ICON = {"urgent": "🔴", "notice": "🟡", "log": "⚪"}
 CHANNEL_NAMES = {"screen": "Quant screen", "theme": "Theme", "smart_money": "Smart money"}
@@ -61,9 +66,17 @@ def _ctx():
     return cfg, conn
 
 
+def _alert_href(r) -> str | None:
+    """The page the alert is about (same target as the push notification's click link)."""
+    from radar.models import Fire
+    from radar.notify import click_path
+    href = click_path(Fire(r["rule_id"], r["ticker"], r["level"], r["title"], r["body"]))
+    return None if href == "/" else href
+
+
 def _alerts(rows, tz):
     return [
-        {"icon": LEVEL_ICON.get(r["level"], ""), "title": r["title"], "body": r["body"],
+        {"icon": LEVEL_ICON.get(r["level"], ""), "title": r["title"], "body": r["body"], "href": _alert_href(r),
          "ticker": r["ticker"], "when": local_time(r["ts"], tz), "pushed": bool(r["pushed"])}
         for r in rows
     ]
@@ -134,10 +147,26 @@ def home(request: Request):
         "alerts": alerts,
         "fed": fed,
         "problems": problems,
+        "ledger_age": _ledger_age(),
+        "ledger_due": _ledger_due(),
         "updated": local_time(updated, cfg.tz) if updated else None,
     }, "home")
 
 
+def _ledger_age():
+    from radar import ledger
+    try:
+        return ledger.sync_age_days()
+    except Exception:
+        return None
+
+
+def _ledger_due() -> int:
+    from radar import ledger
+    try:
+        return ledger.due_count()
+    except Exception:
+        return 0
 
 
 from radar.notes import TICKER_RE  # noqa: E402  (shared with the notes form)
@@ -274,6 +303,33 @@ def macro_page(request: Request):
         "movers": [c for c in changes if c["delta_pp"] is not None and abs(c["delta_pp"]) >= 3
                    and not views.is_econ_ladder(c, series)][:12],  # ladders are shown as implied values instead
     }, "macro")
+
+
+@app.get("/news", response_class=HTMLResponse)
+def news_page(request: Request, all: int = 0):
+    from radar import news
+    from web import scheduler
+
+    cfg, conn = _ctx()
+    now = datetime.now(timezone.utc)
+    try:
+        rows = news.recent(conn, now, hours=48, min_score=0 if all else 1)
+        ctx = {"rows": rows, "all": all, "last": db.last_runs(conn).get("news"), "cfg": cfg.news,
+               "running": "news" in scheduler.state.get("jobs", set())}
+    finally:
+        conn.close()
+    ctx["when"] = {r["id"]: local_time(r["published"], cfg.tz) for r in rows}
+    if ctx["last"]:
+        ctx["last_when"] = local_time(ctx["last"]["ts"], cfg.tz)
+    return _render(request, "news.html", ctx, "news")
+
+
+@app.post("/news/run")
+async def news_run():
+    from web import scheduler
+
+    asyncio.create_task(scheduler.spawn("news"))
+    return RedirectResponse("/news", status_code=303)
 
 
 @app.get("/reddit", response_class=HTMLResponse)

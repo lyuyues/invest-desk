@@ -71,7 +71,7 @@ def build_bundle(conn: sqlite3.Connection, cfg: Config, now: datetime) -> str:
     rows = conn.execute("SELECT ticker, code, COUNT(*) n, SUM(value) v, GROUP_CONCAT(DISTINCT owner) owners "
                         "FROM insider_tx WHERE tx_date>=? AND code IN ('P','S') GROUP BY ticker, code",
                         (week_ago.date().isoformat(),)).fetchall()
-    L += [f"- {r['ticker']} {'Buy' if r['code'] == 'P' else 'Sell'} {r['n']} trade(s) ${(r['v'] or 0) / 1e6:.2f} M ({r['owners']})"
+    L += [f"- {r['ticker']} {'Buy' if r['code'] == 'P' else 'Sell'} {r['n']} transaction(s) ${(r['v'] or 0) / 1e6:.2f} M ({r['owners']})"
           for r in rows] or ["- None"]
 
     L += ["", "## Earnings"]

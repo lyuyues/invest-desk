@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %} News · Invest Radar {% endblock %}
+{% block content %}
+<section>
+  <h2>Real-time news</h2>
+  <div class="muted">Every {{ cfg.every_min or 3 }} minutes it fetches Google News (the people and topics you watch), Yahoo news for your holdings {% for f in cfg.feeds or [] %}, {{ f.name }}{% endfor %}; Claude scores each item on"whether it moves your holdings / the market right away"from 0 to 3, and≥{{ cfg.push_score or 2 }} and up are pushed immediately (3 even in quiet hours). People / topics to watch are in config/news.yaml.</div>
+  <div class="muted" style="margin-top:6px">
+    {% if last %} Last fetched {{ last_when }}{% if not last.ok %} (failed: {{ last.detail[:160] }}) {% else %} · {{ last.detail[:120] }}{% endif %}{% else %} Not fetched yet {% endif %}
+    {% if running %}<span>· Fetching…</span>
+    {% else %}<form method="post" action="/news/run" style="display:inline"><button class="chipbtn">Fetch now</button></form>{% endif %}
+    · {% if all %}<a href="/news">Relevant only</a>{% else %}<a href="/news?all=1">Show all (incl. 0)</a>{% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>Last 48 hours</h2>
+  {% if rows %}
+  <div class="scroll"><table>
+    <tr><th>Time</th><th>Score</th><th>Ticker</th><th>Assessment</th><th>Headline</th></tr>
+    {% for r in rows %}
+    <tr id="n-{{ r.id }}"><td class="muted" style="white-space:nowrap">{{ when[r.id] }}</td>
+      <td><span class="chip{% if r.score == 3 %} lvl-High {% elif r.score == 2 %} lvl-Medium {% endif %}">{{ r.score if r.score is not none else '—' }}</span></td>
+      <td style="white-space:nowrap">{% for t in (r.tickers or '').split(',') if t %}{% if t == 'SPY' %}{{ t }}{% else %}<a href="/t/{{ t }}">{{ t }}</a>{% endif %}{% if not loop.last %} {% endif %}{% endfor %}
+        {% if r.direction %}<div class="muted">{{ r.direction }}</div>{% endif %}</td>
+      <td style="white-space:normal">{{ r.why or '' }}</td>
+      <td style="white-space:normal"><a href="{{ r.link }}" target="_blank" rel="noopener">{{ r.title[:160] }}</a> <span class="muted">{{ r.source }}</span></td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}<div class="muted">No relevant news recently</div>{% endif %}
+</section>
+{% endblock %}

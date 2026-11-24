@@ -29,6 +29,7 @@ class Config:
     macro: dict = field(default_factory=dict)       # config/macro.yaml
     discovery: dict = field(default_factory=dict)   # config/discovery.yaml
     reddit: dict = field(default_factory=dict)      # config/reddit.yaml
+    news: dict = field(default_factory=dict)        # config/news.yaml
     heartbeat: dict = field(default_factory=dict)   # job -> max age hours
     theses_dir: Path | None = None
 
@@ -69,6 +70,7 @@ def load_config(config_dir: Path | None = None, env: Mapping[str, str] | None = 
         macro=_read_yaml(config_dir / "macro.yaml"),
         discovery=_read_yaml(config_dir / "discovery.yaml"),
         reddit=_read_yaml(config_dir / "reddit.yaml"),
+        news=_read_yaml(config_dir / "news.yaml"),
         heartbeat=rl.get("heartbeat") or {},
         theses_dir=Path(env["THESES_DIR"]) if env.get("THESES_DIR") else None,
     )

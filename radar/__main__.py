@@ -32,7 +32,7 @@ from radar.notify import make_pusher
 
 log = logging.getLogger("radar")
 
-JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles", "reddit", "paper", "scan"]
+JOBS = ["prices", "edgar", "macro", "markets", "earnings", "discover", "weekly", "heartbeat", "brief", "valuation", "profiles", "reddit", "paper", "scan", "news"]
 DAILY = ["prices", "edgar", "macro", "earnings", "markets", "heartbeat"]
 
 
@@ -70,6 +70,9 @@ def _job_fn(name: str, conn, cfg: Config, now: datetime, push):
         return lambda: jobs.heartbeat_job(conn, cfg, now, push)
     if name == "reddit":
         return lambda: jobs.reddit_job(conn, cfg, now)
+    if name == "news":
+        from radar import news
+        return lambda: news.run_job(conn, cfg, now, push, weekly.claude_runner(timeout=240), quotes=news.quote_line)
     if name == "paper":
         from radar import options, paper, trade
         return lambda: (paper.run_job(conn, now, push) + " | options " + options.run_job(conn, now)
@@ -142,6 +145,31 @@ def run_jobs(names: list[str], cfg: Config) -> int:
     return 1 if failed else 0
 
 
+def ledger_report(cfg: Config, ym: str | None) -> int:
+    from zoneinfo import ZoneInfo
+
+    from radar import ledger_report as lr
+
+    local = datetime.now(ZoneInfo(cfg.tz))
+    ym = ym or lr.due_month(local.replace(tzinfo=None)) or local.strftime("%Y-%m")
+    rid, ok = lr.generate(ym, weekly.claude_runner(timeout=900))
+    link = f"{cfg.public_url}/ledger/reports/{rid}" if cfg.public_url else f"/ledger/reports/{rid}"
+    _pusher(cfg)(Fire(f"ledger:{rid}", "*", "notice",
+                      f"📒 {ym} household finance report" + ("Generated" if ok else " (Claude failed, data only)"), link))
+    log.info("ledger_report %s → %s ok=%s", ym, rid, ok)
+    return 0 if ok else 1
+
+
+def ledger_demo() -> int:
+    """Fill an EMPTY ledger with a fictional household (refuses if there is any data)."""
+    from radar import ledger_demo as demo
+    try:
+        r = demo.load()
+    except ValueError as e:
+        log.error("%s", e)
+        return 1
+    log.info("demo ledger loaded: %s transactions, sample report %s", r["transactions"], r["report"])
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,6 +179,9 @@ def main(argv: list[str] | None = None) -> int:
     for j in JOBS + ["daily"]:
         sub.add_parser(j)
     sub.add_parser("collect", help="alias of prices")
+    lr = sub.add_parser("ledger_report", help="month-end household finance report (Claude)")
+    lr.add_argument("ym", nargs="?", help="YYYY-MM (default: the month that is due, else this month)")
+    sub.add_parser("ledger_demo", help="fill an empty ledger (LEDGER_DB) with a fictional household")
     s = sub.add_parser("serve", help="run web dashboard")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8770)
@@ -172,6 +203,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         _pusher(cfg)(Fire("test", "*", "notice", "Invest Radar test", "Push works ✅"))
         return 0
+    if args.cmd == "ledger_report":
+        return ledger_report(cfg, args.ym)
+    if args.cmd == "ledger_demo":
+        return ledger_demo()
     names = {"collect": ["prices"], "daily": DAILY,
              "brief": ["edgar", "markets", "brief"]}.get(args.cmd, [args.cmd])
     return run_jobs(names, cfg)

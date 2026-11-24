@@ -31,6 +31,12 @@
 {% block sub %}<span class="muted">{{ 'Updated ' ~ updated if updated else 'Not fetched yet' }}</span>{% endblock %}
 
 {% block content %}
+{% if ledger_due %}
+<section class="warn"><div>📌 Ledger to-dos left this month: {{ ledger_due }} not done —— <a href="/ledger/todo">view in the ledger</a></div></section>
+{% endif %}
+{% if ledger_age is not none and ledger_age >= 7 %}
+<section class="warn"><div>⏰ No new transactions imported for {{ ledger_age }} days —— <a href="/ledger/sync">import now</a>.</div></section>
+{% endif %}
 {% if problems %}
 <section class="warn"><h2>⚙️ System</h2><div>These jobs failed on their last run: {{ problems | join(', ') }}</div></section>
 {% endif %}
@@ -53,7 +59,7 @@
   {% if alerts %}
   <ul class="alerts">
     {% for a in alerts %}
-    <li>{{ a.icon }} <b>{{ a.title }}</b> <span class="muted">· {{ a.when }}{{ '' if a.pushed else ' · not pushed' }}</span>
+    <li>{{ a.icon }} {% if a.href %}<a href="{{ a.href }}"><b>{{ a.title }}</b></a>{% else %}<b>{{ a.title }}</b>{% endif %} <span class="muted">· {{ a.when }}{{ '' if a.pushed else ' · not pushed' }}</span>
       {% if a.body and a.body != a.title %}<div class="muted">{{ a.body }}</div>{% endif %}</li>
     {% endfor %}
   </ul>

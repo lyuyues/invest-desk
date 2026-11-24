@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %} Transactions · Invest Radar {% endblock %}
+{% block content %}
+{% set ltab = 'tx' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+<section>
+  <form class="addform" method="get">
+    <input name="q" value="{{ f.q }}" placeholder="Search notes/categories/accounts">
+    <input name="m" value="{{ f.m }}" placeholder="2026-11 or 2026" size="8">
+    <select name="type"><option value="">All types</option>{% for k, z in types.items() %}<option value="{{ k }}" {{ 'selected' if f.type == k else '' }}>{{ z }}</option>{% endfor %}</select>
+    {% if f.cat %}<input type="hidden" name="cat" value="{{ f.cat }}"><span class="chip">{{ f.cat }}</span>{% endif %}
+    {% if f.account %}<input type="hidden" name="account" value="{{ f.account }}"><span class="chip">{{ f.account }}</span>{% endif %}
+    <button>Filter</button> <a href="/ledger/tx">Clear</a>
+  </form>
+  <div class="muted">{{ rows|length }} transaction(s) {% if rows|length >= 300 %} (only the latest 300 shown; narrow the filter to see more) {% endif %}</div>
+  <div class="scroll"><table class="fin">
+    <tr><th>Date</th><th>Type</th><th>Category</th><th>Account</th><th>Note</th><th>Member</th><th class="num">Amount</th></tr>
+    {% for t in rows %}
+    <tr><td>{{ t.occurred_at[:10] }}</td><td>{{ t.type_zh }}</td>
+      <td>{{ t.cat }}<span class="muted"> · {{ t.sub or '' }}</span></td>
+      <td><a href="/ledger/tx?account={{ t.account|urlencode }}">{{ t.account or '' }}</a></td>
+      <td>{{ t.note or '' }}{% if t.project %} <span class="chip">{{ t.project }}</span>{% endif %}</td><td>{{ t.member or '' }}</td>
+      <td class="num {{ 'up' if t.type == 'income' else '' }}">{{ t.currency }} {{ '{:,.2f}'.format(t.amount) }}</td></tr>
+    {% endfor %}
+  </table></div>
+</section>
+{% endblock %}

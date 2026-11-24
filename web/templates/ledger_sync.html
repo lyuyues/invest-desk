@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %} Import transactions · Invest Radar {% endblock %}
+{% block content %}
+{% set ltab = 'sync' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+<section>
+  <h2>Import transactions (CSV)</h2>
+  <p class="muted">Export transactions from your bank or bookkeeping app, rename the columns to the ones below (any order, header row first) and upload. Uploading the same or an overlapping file again only adds new rows; an import never deletes anything. The ledger is backed up before every import.</p>
+  <div class="scroll"><table class="fin"><tr><th>Column</th><th>Content</th></tr>
+  <tr><td><code>date</code></td><td>Date, YYYY-MM-DD (time optional) · required</td></tr>
+  <tr><td><code>amount</code></td><td>Amount; without a type column, negative = expense, positive = income · required</td></tr>
+  <tr><td><code>account</code></td><td>Account name, e.g. Chase Checking · required</td></tr>
+  <tr><td><code>currency</code></td><td>USD / CAD / CNY / EUR / HKD, default USD</td></tr>
+  <tr><td><code>type</code></td><td>expense / income / transfer_in / transfer_out / balance_adjust (optional)</td></tr>
+  <tr><td><code>category</code>, <code>subcategory</code></td><td>Category and subcategory, e.g. Food & drink / Groceries</td></tr>
+  <tr><td><code>member</code>, <code>note</code></td><td>Who it’s for, note</td></tr>
+  <tr><td><code>account_type</code>, <code>owner</code></td><td>Type of a new account (checking / savings / credit_card / investment) and owner (optional)</td></tr>
+  </table></div>
+  {% if st.n == 0 %}<form method="post" action="/ledger/demo" style="margin:8px 0"><button class="chipbtn">No data? Load demo data (a fictional household)</button></form>{% endif %}
+  <form method="post" action="/ledger/sync" enctype="multipart/form-data" class="addform">
+  <input type="file" name="file" accept=".csv" required>
+    {% if result and result.aborted %}<label><input type="checkbox" name="force" value="1"> I confirm, sync anyway</label>{% endif %}
+    <button>Upload and import</button>
+  </form>
+  {% if result %}
+    {% if result.error %}<p class="down">{{ result.error }}</p>
+    {% elif result.aborted %}<p class="down">⚠️ This file ({{ filename }}) would delete {{ result.would_delete }} / {{ result.existing }} existing records, so it was paused. Common causes: an account was renamed in the bookkeeping app, or only part of the history was exported. If that’s fine, tick “sync anyway” and upload again.</p>
+    {% else %}<p class="up">✅ {{ filename }}: added {{ result.inserted }}, deleted {{ result.deleted }}, {% if result.updated %}updated {{ result.updated }}, {% endif %}unchanged {{ result.skipped }} (of {{ result.total }} rows){% if result.errors %}, {{ result.errors|length }} rows could not be parsed {% endif %}</p>
+      {% if result.errors %}<pre class="muted">{{ result.errors|join('\n') }}</pre>{% endif %}
+    {% endif %}
+  {% endif %}
+</section>
+<section>
+  <h2>Import history</h2>
+  <div class="scroll"><table class="fin">
+    <tr><th>Time</th><th>File</th><th class="num">Added</th><th class="num">Delete</th><th class="num">Unchanged</th><th>Status</th></tr>
+    {% for i in imports %}<tr><td>{{ (i.imported_at or '')[:16] }}</td><td>{{ i.filename }}</td><td class="num">{{ i.rows_inserted or 0 }}</td>
+      <td class="num">{{ i.rows_soft_deleted or 0 }}</td><td class="num">{{ i.rows_skipped or 0 }}</td><td>{{ i.status }}</td></tr>{% endfor %}
+  </table></div>
+</section>
+<section>
+  <h2>Change password</h2>
+  <form method="post" action="/ledger/password" class="addform">
+    <input type="password" name="old" placeholder="Old password" autocomplete="current-password" required>
+    <input type="password" name="pw" placeholder="New password (≥8 characters)" autocomplete="new-password" required minlength="8">
+    <input type="password" name="pw2" placeholder="Repeat it" autocomplete="new-password" required minlength="8">
+    <button>Update</button>
+  </form>
+  {% if pwerr %}<p class="down">{{ pwerr }}</p>{% endif %}{% if pwok %}<p class="up">Password changed; other devices need to sign in again.</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %} Financial independence · Invest Radar {% endblock %}
+{% macro usd(x) %}{{ '${:,.0f}'.format(x) if x is not none else '—' }}{% endmacro %}
+{% macro yrs(m) %}{% if m is none %} not within 60 years {% elif m == 0 %} reached {% elif m < 24 %}{{ m }} months {% else %}{{ '%.1f' % (m / 12) }} years {% endif %}{% endmacro %}
+{% block content %}
+{% set ltab = 'fi' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+{% if saved %}<p class="up">Saved.</p>{% endif %}
+<section>
+  <h2>Household financial independence</h2>
+  {% if not v.hist %}<p class="down">No asset snapshot yet — enter this month’s investable assets below first to see progress and years.</p>{% endif %}
+  <div class="kpis">
+    <div><div class="muted">Target</div><b>{{ usd(v.target) }}</b><div class="muted">{% if v.mortgage_balance %} Terminal {{ usd(v.target_paid) }} + mortgage principal {{ usd(v.mortgage_balance) }}{% else %}<span class="down">Mortgages not included yet — enter the remaining principal under “Assumptions” below</span>{% endif %}</div></div>
+    <div><div class="muted">Progress</div><b>{{ '%.1f%%' % v.progress if v.progress is not none and v.hist else '—' }}</b><div class="muted">Assets {{ usd(v.assets) }}{% if v.delta is not none %} · vs last time <span class="{{ 'up' if v.delta >= 0 else 'down' }}">{{ '%+s' % '{:,.0f}'.format(v.delta) }}</span>{% endif %}</div></div>
+    <div><div class="muted">Time to go</div><b>{{ yrs(v.months_fi) if v.hist else '—' }}</b><div class="muted">Saving {{ usd(v.monthly) }}</div></div>
+  </div>
+  {% if v.hist %}
+  <div class="fibar"><span style="width:{{ [v.progress or 0, 100]|min }}%"></span>
+    {% for m in v.milestones %}<i style="left:{{ [100 * m.amount / v.target, 100]|min if v.target else 0 }}%" title="{{ m.name }} {{ usd(m.amount) }}"></i>{% endfor %}</div>
+  <p>If you stopped working today, household assets would last <b>{{ '%.0f' % v.runway }} months</b> (at a monthly net spending in retirement of {{ usd(v.need / 12) }}).
+    {% if v.next %} Next milestone: <b>{{ v.next.name }}</b> {{ usd(v.next.amount) }}, still {{ usd(v.next.amount - v.assets) }}, expected in {{ yrs(v.next.months) }}. {% endif %}</p>
+  {% endif %}
+  <div class="scroll"><table class="fin">
+    <tr><th>Milestone</th><th class="num">Amount</th><th>Status</th></tr>
+    {% for m in v.milestones %}<tr><td>{{ m.name }}</td><td class="num">{{ usd(m.amount) }}</td>
+      <td>{% if m.done %}<span class="up">✅ reached</span>{% elif v.hist %} Expected in {{ yrs(m.months) }}{% else %}—{% endif %}</td></tr>{% endfor %}
+  </table></div>
+</section>
+
+{% if v.hist %}
+<section>
+  <h2>Assets over time</h2>
+  {% set pts = v.hist|map(attribute='household')|list %}
+  {% set mx = [v.target, pts|max]|max or 1 %}
+  {% set n = pts|length %}
+  <svg class="fiplot" viewBox="0 0 300 120" preserveAspectRatio="none">
+    <line x1="0" x2="300" y1="{{ 110 - 100 * v.target / mx }}" y2="{{ 110 - 100 * v.target / mx }}" class="tgt"/>
+    {% if n > 1 %}<polyline class="hist" points="{% for p in pts %}{{ 300 * loop.index0 / (n - 1) }},{{ 110 - 100 * p / mx }} {% endfor %}"/>{% else %}<circle cx="4" cy="{{ 110 - 100 * pts[0] / mx }}" r="3" class="dotp"/>{% endif %}
+  </svg>
+  <div class="muted">Solid line = monthly snapshots (from {{ v.hist[0].ym }}), dashed line = target. Enter one around the 10th of each month and the line grows.</div>
+</section>
+{% endif %}
+
+{% if v.hist %}
+<section>
+  <h2>How the return assumption changes the years</h2>
+  <div class="scroll"><table class="fin"><tr><th>Real annual return (after inflation)</th>{% for r, m in v.sensitivity %}<th class="num {{ 'on' if (r - v.cfg.real_return)|abs < 0.001 else '' }}">{{ '%.0f%%' % (100 * r) }}</th>{% endfor %}</tr>
+    <tr><td>Years to the household target</td>{% for r, m in v.sensitivity %}<td class="num">{{ yrs(m) }}</td>{% endfor %}</tr></table></div>
+  <p class="muted">For reference: US stocks (S&amp;P 500) returned about 6–7%/yr after inflation since 1926, but any 10 years can be bad (2000–2009 about −3%/yr); stock/bond mixes are lower. Conservative plans often use 3–4%.</p>
+</section>
+{% endif %}
+<section id="goals">
+  <h2>My own goals <span class="muted"> (separate from the household goal)</span></h2>
+  {% for g in v.goals %}
+  <div class="goal">
+    <div class="ghead"><b>{{ g.name }}</b>
+      <span class="muted">{{ ', '.join(g.names) if g.names else 'All accounts owned by ' ~ me ~ '' }}</span></div>
+    {% if g.target %}
+    <div class="kpis">
+      <div><div class="muted">Target</div><b>{{ usd(g.target) }}</b>{% if g.deadline %}<div class="muted">Deadline {{ g.deadline }}</div>{% endif %}</div>
+      <div><div class="muted">Now</div><b>{{ usd(g.current) }}</b><div class="muted">{{ '%.1f%%' % g.progress }}{% if g.delta is not none %} · vs last time {{ '%+s' % '{:,.0f}'.format(g.delta) }}{% endif %}</div></div>
+      <div><div class="muted">Time to go</div><b>{{ yrs(g.months) if v.hist else '—' }}</b><div class="muted">Monthly contribution {{ usd(g.monthly_eff) }}{{ ' (ledger)' if g.monthly_auto else '' }}</div></div>
+    </div>
+    <div class="fibar"><span style="width:{{ [g.progress or 0, 100]|min }}%"></span></div>
+    {% if g.need_monthly is not none %}<p>To reach it by {{ g.deadline }}, you need to invest monthly <b>{{ usd(g.need_monthly) }}</b>
+      {% if g.need_monthly > g.monthly_eff %}<span class="down"> (more than now by {{ usd(g.need_monthly - g.monthly_eff) }})</span>{% else %}<span class="up"> (current pace is enough)</span>{% endif %}</p>{% endif %}
+    {% else %}<p class="down">No target amount yet — click “Edit” and enter a number that means something to you.</p>{% endif %}
+    <details{{ ' open' if not g.target else '' }}><summary class="muted">Edit</summary>
+      <form method="post" action="/ledger/fi/goal" class="snapform">
+        <input type="hidden" name="id" value="{{ g.id }}">
+        <label>Name <input name="name" value="{{ g.name }}" required maxlength="60"></label>
+        <label>Target $ <input name="target" value="{{ '%.0f' % g.target if g.target else '' }}" size="10"></label>
+        <label>Monthly contribution $ <input name="monthly" value="{{ '%.0f' % g.monthly_eff }}" size="8"><small class="muted">{{ 'from ledger' if g.monthly_auto else 'Manual' }}; clear to reset</small></label>
+        <label>Deadline <input name="deadline" value="{{ g.deadline or '' }}" placeholder="2031-12 (optional)" size="8"></label>
+        <div style="flex-basis:100%" class="mpick">Accounts to include: {% for n in v.item_names %}<label><input type="checkbox" name="items" value="{{ n }}" {{ 'checked' if n in g.names else '' }}>{{ n }}</label>{% endfor %}<span class="muted"> (none ticked = All accounts owned by {{ me }})</span></div>
+        <button>Save</button>
+      </form>
+      <form method="post" action="/ledger/fi/goal/{{ g.id }}/delete" style="margin-top:6px"><button class="chipbtn">Delete this goal</button></form>
+    </details>
+  </div>
+  {% endfor %}
+  <details><summary>+ Add a goal of my own</summary>
+    <form method="post" action="/ledger/fi/goal" class="snapform" style="margin-top:8px">
+      <label>Name <input name="name" placeholder="e.g. my share of spending covered" required maxlength="60"></label>
+      <label>Target $ <input name="target" size="10"></label>
+      <label>Monthly contribution $ <input name="monthly" placeholder="Empty = from ledger" size="8"></label>
+      <label>Deadline <input name="deadline" placeholder="2031-12 (optional)" size="8"></label>
+      <div style="flex-basis:100%" class="mpick">Accounts to include: {% for n in v.item_names %}<label><input type="checkbox" name="items" value="{{ n }}">{{ n }}</label>{% endfor %}<span class="muted"> (none ticked = All accounts owned by {{ me }})</span></div>
+      <button>Add</button>
+    </form>
+  </details>
+</section>
+
+<section>
+  <h2>How the target is calculated</h2>
+  <p class="muted">Yearly spending in retirement comes from the last 12 full months of the ledger ({{ v.auto.window[0] }} – {{ v.auto.window[1] }}); one-off spending like remodels and repaying people {{ usd(v.auto.oneoff) }} is excluded. Every line can be changed below.</p>
+  <div class="scroll"><table class="fin">
+    {% for k, label in v.labels.items() %}<tr><td>{{ label }}</td><td class="num">{{ usd(v.buckets[k]) }}</td><td class="muted">{{ 'ledger' if k != 'health' and k not in v.cfg.override else 'Manual' }}</td></tr>{% endfor %}
+    <tr><td><b>Total</b></td><td class="num"><b>{{ usd(v.spend) }}</b></td><td></td></tr>
+    <tr><td>Minus: rental income</td><td class="num">−{{ usd(v.auto.rent) }}</td><td class="muted">ledger</td></tr>
+    <tr><td>Net spending per year (incl. mortgage)</td><td class="num">{{ usd(v.need) }}</td><td class="muted">cash needed per year now</td></tr>
+    <tr><td><b>Perpetual part (excl. mortgage)</b></td><td class="num"><b>{{ usd(v.need_paid) }}</b></td><td class="muted">÷ {{ '%.1f%%' % (100 * v.cfg.wr) }} = {{ usd(v.target_paid) }}</td></tr>
+    <tr><td><b>+ remaining mortgage principal</b></td><td class="num"><b>{{ usd(v.mortgage_balance) if v.mortgage_balance else 'not entered' }}</b></td><td class="muted">= Target {{ usd(v.target) }}</td></tr>
+  </table></div>
+  <p class="muted">Mortgages end, so they can’t be treated like daily spending ÷4% as a permanent expense; at rates below 4%, the money needed to cover the remaining payments ≈ the remaining principal (you don’t prepay; that money stays invested and pays the monthly installments). Monthly savings default to the 12-month average surplus {{ usd(v.auto.savings_monthly) }}. Years assume a real annual return of {{ '%.0f%%' % (100 * v.cfg.real_return) }}; an illustration only, not investment advice.</p>
+</section>
+
+<section>
+  <h2>This month’s asset snapshot <span class="muted">· {{ ym }}{{ ' (entered, editable)' if has_this_month else '' }}</span></h2>
+  <p class="muted">Enter only<b>investable assets</b> (stocks, funds, retirement accounts, cash), not your home. Items owned by {{ me }} also count toward your own goals.</p>
+  {% if prefilled %}<p class="up">Prefilled from the investment accounts in the bookkeeping app (market value as of each account’s last “balance adjustment”: {% for r in rows if r.last %}{{ r.item }} {{ r.last }}{% if not loop.last %}, {% endif %}{% endfor %}). Check them, add cash, and click “Save snapshot” to start tracking.</p>{% endif %}
+  <form method="post" action="/ledger/fi/snapshot" class="snapform">
+    <input type="hidden" name="ym" value="{{ ym }}">
+    {% for r in rows %}{% include "_fi_row.html" %}{% endfor %}
+    {% for _ in range(2) %}{% set r = {'item': '', 'owner': 'Household', 'currency': 'USD', 'amount': None} %}{% include "_fi_row.html" %}{% endfor %}
+    <button>Save snapshot</button>
+  </form>
+</section>
+
+<section>
+  <h2>Assumptions</h2>
+  <form method="post" action="/ledger/fi/settings" class="snapform">
+    <label>Withdrawal rate % <input name="wr" value="{{ '%g' % (100 * v.cfg.wr) }}" size="4"></label>
+    <label>Real annual return % (after inflation) <input name="real_return" value="{{ '%g' % (100 * v.cfg.real_return) }}" size="4"></label>
+    <label>Remaining mortgage principal, total $ <input name="mortgage_balance" value="{{ '%g' % v.cfg.mortgage_balance if v.cfg.mortgage_balance else '' }}" placeholder="all properties combined" size="10"></label>
+    <label>Health insurance $/yr <input name="health" value="{{ '%g' % v.cfg.health }}" size="8"></label>
+    {% for k, label in v.labels.items() if k != 'health' %}<label>{{ label }} $/years <input name="o_{{ k }}" value="{{ '%.0f' % v.buckets[k] }}" size="10">{% if k not in v.cfg.override %}<small class="muted">ledger</small>{% else %}<small class="down">Manual</small>{% endif %}</label>{% endfor %}
+    <label>Household monthly savings $ <input name="savings_override" value="{{ '%.0f' % v.monthly }}" size="10">{% if v.savings_auto %}<small class="muted">ledger 12-mo average</small>{% else %}<small class="down">Manual</small>{% endif %}</label>
+    <div class="muted" style="flex-basis:100%">Values marked “ledger” are computed from the bookkeeping app and update with every import; edit a number to make it “manual” and fixed, clear it to go back to automatic.</div>
+    <button>Save</button>
+  </form>
+</section>
+{% endblock %}

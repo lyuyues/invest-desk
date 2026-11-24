@@ -109,6 +109,23 @@ def _profiles_missing() -> bool:
         conn.close()
 
 
+def ledger_report_due(now: datetime) -> str | None:
+    from radar import ledger_report
+    from radar.bookkeeping import db as ldb
+
+    if not ldb.db_path().exists():
+        return None
+    from radar import ledger
+    if ledger.is_empty():
+        return None
+    ym = ledger_report.due_month(now.astimezone(ZoneInfo(load_config().tz)).replace(tzinfo=None))
+    tried = state.setdefault("ledger_tried", {})
+    if ym and (now - tried.get(ym, now - timedelta(days=1))).total_seconds() > 6 * 3600:  # ≤1 try per 6h
+        tried[ym] = now
+        return ym
+    return None
+
+
 
 
 def paper_due(now: datetime, last: str | None) -> bool:
@@ -153,6 +170,10 @@ def any_port_accounts() -> bool:
         conn.close()
 
 
+def news_due(now: datetime, last: str | None, every_min: float) -> bool:
+    return last is None or (now - datetime.fromisoformat(last)).total_seconds() >= every_min * 60
+
+
 def reddit_due(now: datetime, last: str | None, every_hours: float) -> bool:
     return last is None or (now - datetime.fromisoformat(last)).total_seconds() >= every_hours * 3600
 
@@ -190,6 +211,11 @@ async def loop() -> None:
                 state["reddit_at"] = now  # ≤1 start per 30 min even if the job dies before recording a run
                 log.info("starting reddit fetch")
                 asyncio.create_task(spawn("reddit"))
+            news_every = float(load_config().news.get("every_min", 3) or 0)
+            if (news_every and "news" not in state.get("jobs", set()) and news_due(now, _last_run("news"), news_every)
+                    and (now - state.get("news_at", now - timedelta(hours=1))).total_seconds() >= news_every * 60):
+                state["news_at"] = now
+                asyncio.create_task(spawn("news"))
             if ("paper" not in state.get("jobs", set()) and paper_due(now, _last_run("paper"))
                     and (now - state.get("paper_at", now - timedelta(hours=1))).total_seconds() > 1800):
                 state["paper_at"] = now
@@ -204,6 +230,9 @@ async def loop() -> None:
             if not state.get("valuing") and valuation_due(now, _last_valuation_run()):
                 log.info("starting weekly valuation refresh")
                 asyncio.create_task(run_valuation())
+            if ym := ledger_report_due(now):
+                log.info("starting ledger report %s", ym)
+                asyncio.create_task(spawn_args("ledger_report", ym))
         except Exception:
             log.exception("scheduler tick failed")
         await asyncio.sleep(30)

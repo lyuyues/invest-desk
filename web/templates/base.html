@@ -204,7 +204,7 @@
 </style>
 </head>
 {% macro navlinks() %}
-    {% for key, label, href in [('home','Overview','/'),('daily','Daily brief','/daily'),('macro','Macro','/macro'),('reddit','Reddit','/reddit'),('discover','Discover','/discover'),('valuation','Valuation','/valuation'),('earnings','Earnings','/earnings'),('theses','Theses','/theses'),('notes','Notes','/notes'),('reports','Weekly report','/reports'),('trade','Paper trading','/trade'),('sim','Backtest','/sim'),('paper','Strategy simulation','/paper')] + ledger_nav|default([]) %}
+    {% for key, label, href in [('home','Overview','/'),('news','News','/news'),('daily','Daily brief','/daily'),('macro','Macro','/macro'),('reddit','Reddit','/reddit'),('discover','Discover','/discover'),('valuation','Valuation','/valuation'),('earnings','Earnings','/earnings'),('theses','Theses','/theses'),('notes','Notes','/notes'),('reports','Weekly report','/reports'),('trade','Paper trading','/trade'),('sim','Backtest','/sim'),('paper','Strategy simulation','/paper')] + ledger_nav|default([]) %}
     <a href="{{ href }}" class="{{ 'on' if active == key else '' }}">{{ label }}</a>
     {% endfor %}
 {% endmacro %}
@@ -249,6 +249,10 @@
 })();
 (() => {
   let LEDGER = false, LEDGER_UI = {};
+  LEDGER = location.pathname.startsWith("/ledger") && !document.querySelector(".lform");  // unlocked ledger page
+  LEDGER_UI = { key: "radar-agent-ledger", endpoint: "/ledger/agent",
+    sugg: ["Where did the money go this month?", "How does this year compare with last year?", "Here are my answers to the check items: …"],
+    intro: '<div class="muted">Ledger assistant: answers from the ledger summary and the report you’re viewing; answers to check items are saved into their reply boxes automatically.</div>' };
   const KEY = LEDGER ? LEDGER_UI.key : "radar-agent";
   const log = document.getElementById("alog"), q = document.getElementById("aq"), send = document.getElementById("asend");
   const SUGG = LEDGER ? LEDGER_UI.sugg
@@ -327,6 +331,8 @@
           else if (ev.t === "status") status.textContent = ev.v;
           else if (ev.t === "error") { status.textContent = ""; st.msgs.push({ role: "err", text: "Error: " + ev.v }); }
           else if (ev.t === "done") status.textContent = "";
+          else if (ev.t === "saved") { bot.text += "\n\n" + (ev.msg || ("✅ Saved to check items " + ev.v.join(", ") + " (refresh to see)"));
+            if (/^\/(ledger\/reports|rental\/listing)\//.test(location.pathname)) setTimeout(() => location.reload(), 1500); }
           paint(); save();
         }
       }

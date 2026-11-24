@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %} Monthly to-dos · Invest Radar {% endblock %}
+{% macro monthpick(sel) %}<div class="mpick">{% for i in range(1, 13) %}<label><input type="checkbox" name="m" value="{{ i }}" {{ 'checked' if i in sel else '' }}>{{ ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i - 1] }}</label>{% endfor %}<span class="muted"> (none ticked = every month)</span></div>{% endmacro %}
+{% macro when(t) %}{{ ('Months ' ~ (t.month_list|join(', '))) if t.month_list else 'Monthly' }}, day {{ t.day }}{% endmacro %}
+{% block content %}
+{% set ltab = 'todo' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+<section>
+  <h2>Monthly to-dos <span class="muted">· {{ ym }}</span></h2>
+  <p class="muted">When the set day of the month (default the 10th) comes and an item isn’t ticked, the Overview and ledger pages remind you; everything resets next month.</p>
+  {% for t in tasks %}
+  <div class="todo {{ t.status }}">
+    <form method="post" action="/ledger/todo/{{ t.id }}/done"><button class="tick" {{ 'disabled' if t.status == 'off' else '' }} title="{{ 'Mark not done' if t.status == 'done' else 'Mark done' }}">{{ '☑' if t.status == 'done' else '☐' }}</button></form>
+    <div class="tbody">
+      {% if edit == t.id %}
+      <form method="post" action="/ledger/todo/{{ t.id }}" class="addform">
+        <input name="title" value="{{ t.title }}" required maxlength="100">
+        <input name="note" value="{{ t.note or '' }}" placeholder="Note (optional)" maxlength="500">
+        <input name="day" value="{{ t.day }}" size="2" inputmode="numeric"> (day)
+        {{ monthpick(t.month_list) }}
+        <button>Save</button> <a href="/ledger/todo">Cancel</a>
+      </form>
+      {% else %}
+      <b>{{ t.title }}</b> <span class="chip">{{ when(t) }}</span>
+      {% if t.status == 'done' %}<span class="muted">This month {{ t.done_at[5:10] }} Completed</span>{% elif t.status == 'due' %}<span class="down">due this month</span>{% elif t.status == 'off' %}<span class="muted">not this month</span>{% else %}<span class="muted">not due yet</span>{% endif %}
+      {% if t.note %}<div class="muted">{{ t.note }}</div>{% endif %}
+      {% endif %}
+    </div>
+    {% if edit != t.id %}<div class="tacts"><a href="/ledger/todo?edit={{ t.id }}">Edit</a>
+      <form method="post" action="/ledger/todo/{{ t.id }}/delete" style="display:inline"><button class="chipbtn" title="Delete">Delete</button></form></div>{% endif %}
+  </div>
+  {% else %}<p class="muted">No to-dos yet.</p>{% endfor %}
+</section>
+<section>
+  <h2>Add</h2>
+  <form method="post" action="/ledger/todo" class="addform">
+    <input name="title" placeholder="Something to do, e.g. pay the credit card" required maxlength="100">
+    <input name="note" placeholder="Note (optional)" maxlength="500">
+    <input name="day" value="10" size="2" inputmode="numeric"> (day)
+    {{ monthpick([]) }}
+    <button>Add</button>
+  </form>
+</section>
+{% endblock %}

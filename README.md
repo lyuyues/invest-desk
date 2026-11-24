@@ -8,7 +8,15 @@
 |---|---|---|
 | ![Ticker page](docs/screenshots/ticker.png) | ![Valuation](docs/screenshots/valuation.png) | ![Macro](docs/screenshots/macro.png) |
 
-*Screenshots use a sample watchlist and public market data.*
+**Household ledger** (demo data: a fictional household)
+
+| Year view | Financial independence |
+|---|---|
+| ![Ledger year view](docs/screenshots/ledger-year.png) | ![Financial independence tracker](docs/screenshots/ledger-fi.png) |
+| **Month view** | **Month-end report** |
+| ![Ledger month view](docs/screenshots/ledger-month.png) | ![Month-end report](docs/screenshots/ledger-report.png) |
+
+*Screenshots use a sample watchlist, public market data and a made-up household ledger.*
 
 > ⚠️ A personal project for learning and research. **It is not investment advice.** Data comes from free public sources and may be delayed or wrong. Provided as is (MIT), with no promise of maintenance.
 
@@ -31,6 +39,7 @@
 | **Weekly report** | Every Sunday Claude summarizes moves in your holdings, 8-Ks, insider trades, macro and prediction-market changes, and the candidate pool |
 | **Ticker page** | Price chart, 8-Ks (each with a one-line Claude summary), insider trades, past earnings |
 | **Assistant** | A chat on the right of every page that sees the data you are looking at and can search the web |
+| **Household ledger** | Behind its own password: month and year views (savings rate, where the money goes, property cash flow), transactions, account balances, a financial-independence tracker (target from your spending, monthly asset snapshots, milestones, your own goals), a Claude-written month-end report with items to check, monthly to-dos, and its own assistant. Import any bank/app export as CSV, or load a fictional demo household |
 
 **Phone alerts ([ntfy](https://ntfy.sh))**: big daily moves in holdings, price-level crossings, material 8-K items (M&A, bankruptcy, executive changes, restatements, …), large insider buys and cluster buys, earnings releases, big 24-hour changes in prediction-market odds, VIX > 30, an inverted yield curve, and failed jobs. All rules are in `config/rules.yaml`, with quiet hours and de-duplication.
 
@@ -79,6 +88,7 @@ Run the tests: `.venv/bin/python -m pytest -q` (no network needed).
 | `config/rules.yaml` | Alert rules, quiet hours, heartbeat |
 | `config/macro.yaml` | FRED series, prediction markets |
 | `config/discovery.yaml` | Discover screen, themed baskets, 13F funds (also editable under Discover → Screen settings) |
+| `LEDGER_DB` (env) | Household ledger file (default `data/ledger.db`, created with mode 0600). Try it with `python -m radar ledger_demo` |
 
 ### Claude features (optional)
 

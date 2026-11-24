@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %} Accounts · Invest Radar {% endblock %}
+{% block content %}
+{% set ltab = 'accounts' %}{% set years = [] %}
+{% include "_ledger_tabs.html" %}
+<section>
+  <h2>Account balances <span class="muted"> (computed from transactions)</span></h2>
+  <p class="muted">Balance = sum of all transactions (credit cards show the amount owed). If it differs from your bank app, a transaction is usually missing in the bookkeeping app or the opening balance wasn’t entered.</p>
+  {% for owner, rows in owners.items() %}
+  <h3>{{ owner }}</h3>
+  <div class="scroll"><table class="fin">
+    <tr><th>Account</th><th>Type</th><th class="num">Balance</th><th class="num">≈ USD</th><th>Last transaction</th><th class="num">Count</th></tr>
+    {% for a in rows %}
+    <tr><td><a href="/ledger/tx?account={{ a.name|urlencode }}">{{ a.name }}</a></td><td class="muted">{{ a.type }}</td>
+      <td class="num {{ 'down' if a.type == 'credit_card' and a.balance > 0 else '' }}">{{ a.currency }} {{ '{:,.2f}'.format(a.balance) }}</td>
+      <td class="num">{{ '{:,.0f}'.format(a.usd) }}</td><td>{{ (a.last or '')[:10] }}</td><td class="num">{{ a.n }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endfor %}
+  {% if idle %}<details><summary class="muted">Accounts with no transactions for 2 years ({{ idle|length }})</summary>
+  <div class="scroll"><table class="fin">{% for a in idle %}<tr><td><a href="/ledger/tx?account={{ a.name|urlencode }}">{{ a.name }}</a></td>
+    <td class="muted">{{ a.type }}</td><td class="num">{{ a.currency }} {{ '{:,.2f}'.format(a.balance) }}</td><td>{{ (a.last or '')[:10] }}</td></tr>{% endfor %}</table></div></details>{% endif %}
+  <p class="muted">FX rates (→USD): {% for c, r in rates.items() if c != 'USD' %}{{ c }} {{ '%.4f' % r }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+</section>
+{% endblock %}

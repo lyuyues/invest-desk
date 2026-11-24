@@ -13,7 +13,8 @@ TAGS = {"urgent": ["rotating_light"], "notice": ["chart_with_upwards_trend"], "l
 
 # rule_id prefix → page the notification opens (derived from rule_id so deferred alerts keep their link)
 PAGES = {"port": "/scan/{0}", "paper": "/paper/{0}", "weekly": "/reports/{0}", "daily": "/daily/{0}",
-         "ledger": "/ledger/reports/{0}", "enote": "/earnings#e-{0}-{1}"}
+         "ledger": "/ledger/reports/{0}", "enote": "/earnings#e-{0}-{1}",
+         "news": "/news#n-{0}"}
 
 
 def click_path(f: Fire) -> str:

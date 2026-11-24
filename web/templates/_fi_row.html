@@ -1,0 +1,6 @@
+<div class="snaprow">
+  <input name="item" value="{{ r.item }}" placeholder="Item, e.g. partner’s 401k" maxlength="60">
+  <select name="owner"><option {{ 'selected' if r.owner == 'Household' else '' }}>Household</option><option {{ 'selected' if r.owner == me else '' }}>{{ me }}</option></select>
+  <select name="currency">{% for c in ['USD', 'CAD', 'CNY', 'EUR', 'HKD'] %}<option {{ 'selected' if r.currency == c else '' }}>{{ c }}</option>{% endfor %}</select>
+  <input name="amount" value="{{ '{:.0f}'.format(r.amount) if r.amount is not none else '' }}" placeholder="Amount" inputmode="decimal" size="10">
+</div>

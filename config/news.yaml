@@ -1,0 +1,13 @@
+# Real-time news: fetch news feeds every few minutes; Claude judges"whether it moves your holdings / the market right away", and important items are pushed at once.
+every_min: 3            # scheduled inside the web process (web/scheduler.py)
+max_age_min: 120        # news published earlier than this is stored but not judged (so a first run / slow feed doesn’t flood you)
+push_score: 2           # ≥2 push (2 = normal push, held during quiet hours; 3 = urgent, pushed even in quiet hours)
+# People to watch: Google News search (last hour). Names are joined with OR.
+people: [Scott Bessent, Jerome Powell, Howard Lutnick, Jamieson Greer, Kevin Hassett, Trump tariff, Jensen Huang]
+# Topics to watch (also via Google News)
+topics: ["chip export controls", "China trade deal", "Fed rate cut", "Treasury yields surge", "stock market selloff"]
+# Other RSS feeds (Yahoo Finance news for your holdings is added automatically)
+feeds:
+  - {name: CNBC, url: "https://www.cnbc.com/id/100003114/device/rss/rss.html"}
+  - {name: Fed, url: "https://www.federalreserve.gov/feeds/press_all.xml"}
+  - {name: Truth Social, url: "https://trumpstruth.org/feed"}

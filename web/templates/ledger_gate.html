@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %} Ledger · Invest Radar {% endblock %}
+{% block content %}
+<section style="max-width:360px">
+  <h2>🔒 Ledger</h2>
+  {% if mode == 'setup' %}
+  <p class="muted">First time here: set a password just for the ledger (at least 8 characters). Then sign in once per device; it stays valid for 12 hours.</p>
+  <form method="post" action="/ledger/setup" class="lform">
+    <input type="password" name="pw" placeholder="New password" autocomplete="new-password" required minlength="8" autofocus>
+    <input type="password" name="pw2" placeholder="Repeat it" autocomplete="new-password" required minlength="8">
+    <button>Set and enter</button>
+  </form>
+  {% else %}
+  <form method="post" action="/ledger/login" class="lform">
+    <input type="password" name="pw" placeholder="Ledger password" autocomplete="current-password" required autofocus>
+    <button>Unlock</button>
+  </form>
+  {% endif %}
+  {% if error %}<p class="down">{{ error }}</p>{% endif %}
+</section>
+{% endblock %}
