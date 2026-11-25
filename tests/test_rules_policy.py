@@ -18,7 +18,7 @@ R_NOTICE = {"id": "hn", "kind": "pct_change", "tier": "holdings", "threshold": 5
 R_LINE = {"id": "line", "kind": "level_cross", "tier": "all", "level": "notice"}
 
 
-def q(price, prev=100.0, t="MSFT"):
+def q(price, prev=100.0, t="COST"):
     return Quote(t, DAY, price, prev_close=prev)
 
 
@@ -40,14 +40,14 @@ def test_tier_mismatch():
 
 
 def test_level_cross_below_only_on_transition():
-    levels = {"MSFT": {"below": 400}}
-    assert evaluate(R_LINE, q(399, t="MSFT"), "holdings", levels, prev_price=401) is not None
-    assert evaluate(R_LINE, q(398, t="MSFT"), "holdings", levels, prev_price=399) is None
-    assert evaluate(R_LINE, q(399, t="MSFT"), "holdings", levels, prev_price=None) is None
+    levels = {"COST": {"below": 400}}
+    assert evaluate(R_LINE, q(399, t="COST"), "holdings", levels, prev_price=401) is not None
+    assert evaluate(R_LINE, q(398, t="COST"), "holdings", levels, prev_price=399) is None
+    assert evaluate(R_LINE, q(399, t="COST"), "holdings", levels, prev_price=None) is None
 
 
 def test_level_cross_above():
-    levels = {"MSFT": {"above": 500}}
+    levels = {"COST": {"above": 500}}
     f = evaluate(R_LINE, q(501), "holdings", levels, prev_price=499)
     assert f is not None and "500" in f.title
 
@@ -65,10 +65,10 @@ def test_evaluate_all_keeps_most_severe_per_kind():
 # ---- policy ----
 
 def cfg(**kw):
-    return Config(holdings=["MSFT"], watchlist=[], **kw)
+    return Config(holdings=["COST"], watchlist=[], **kw)
 
 
-def F(level, rule="r", t="MSFT"):
+def F(level, rule="r", t="COST"):
     return Fire(rule, t, level, f"{t} {level}", "")
 
 
@@ -109,6 +109,6 @@ def test_cap_overflow_becomes_digest():
 
 
 def test_once_fire_never_repeats_even_after_cooldown():
-    f = Fire("8k:acc1", "MSFT", "urgent", "t", "", once=True)
+    f = Fire("8k:acc1", "COST", "urgent", "t", "", once=True)
     d = decide([f], DAY, cfg(), lambda r, t: DAY - timedelta(days=30), 0)
     assert d.push == []

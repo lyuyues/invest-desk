@@ -181,7 +181,7 @@ def test_negative_strike_parsed(conn):
 ATOM = """<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
 <title>top</title>
 <entry><author><name>/u/alice</name></author><category term="stocks" label="r/stocks"/>
- <content type="html">&lt;div&gt;&lt;p&gt;Thinking about $MSFT and AAPL here, also IT stocks&lt;/p&gt;&lt;/div&gt; submitted by /u/alice</content>
+ <content type="html">&lt;div&gt;&lt;p&gt;Thinking about $COST and NFLX here, also IT stocks&lt;/p&gt;&lt;/div&gt; submitted by /u/alice</content>
  <id>t3_aaa</id><link href="https://www.reddit.com/r/stocks/comments/aaa/x/"/>
  <published>2026-11-11T08:00:00+00:00</published><title>Big tech earnings &amp;amp; rates</title></entry>
 <entry><author><name>/u/bob</name></author><category term="wallstreetbets" label="r/wallstreetbets"/>
@@ -197,18 +197,18 @@ def test_parse_atom():
     p = posts[0]
     assert p.subreddit == "stocks" and p.author == "alice" and p.title == "Big tech earnings & rates"  # reddit double-escapes
     assert p.link.endswith("/aaa/x/") and p.published == "2026-11-11T08:00:00+00:00"
-    assert "$MSFT and AAPL" in p.text and "<p>" not in p.text
+    assert "$COST and NFLX" in p.text and "<p>" not in p.text
 
 
 def test_ticker_matching_rules():
-    pats = rc.ticker_patterns(["MSFT", "AAPL", "F", "NOW", "NVDA", "IT", "GOOGL", "AMAT"],
-                              require_dollar=["AMAT"], aliases={"GOOGL": ["Alphabet"]})
+    pats = rc.ticker_patterns(["COST", "NFLX", "F", "NOW", "QCOM", "IT", "META", "AMAT"],
+                              require_dollar=["AMAT"], aliases={"META": ["Alphabet"]})
     m = lambda s: rc.match_tickers(s, pats)  # noqa: E731
-    assert m("Thinking about $MSFT and AAPL") == ["MSFT", "AAPL"]
+    assert m("Thinking about $COST and NFLX") == ["COST", "NFLX"]
     assert m("NVDA_bull says $F to the moon, NOW is the time") == ["F"]  # NVDA_ is a username, NOW a word
     assert m("$NOW beat, IT spending up, F150 sales") == ["NOW"]
-    assert m("alphabet earnings, AMAT and $AMAT.") == ["GOOGL", "AMAT"]
-    assert m("msft lowercase, AAPLX, XAAPL") == []
+    assert m("alphabet earnings, AMAT and $AMAT.") == ["META", "AMAT"]
+    assert m("cost lowercase, AAPLX, XAAPL") == []
 
 
 def test_fetch_feeds_spacing_and_429_retry():
@@ -234,33 +234,33 @@ def test_fetch_feeds_spacing_and_429_retry():
 def test_collect_store_dedup_and_counts(conn):
     rcfg = {"feeds": [{"name": "top", "path": "r/x/top/.rss"}, {"name": "new", "path": "r/x/new/.rss"}],
             "min_interval_s": 0}
-    st = rc.collect(conn, rcfg, ["MSFT", "AAPL", "F"], NOW, lambda url: httpx.Response(200, text=ATOM), sleep=lambda s: None)
+    st = rc.collect(conn, rcfg, ["COST", "NFLX", "F"], NOW, lambda url: httpx.Response(200, text=ATOM), sleep=lambda s: None)
     assert st == {"ok": 2, "failed": [], "posts": 4, "new": 2, "mentions": 6}
     assert conn.execute("SELECT COUNT(*) FROM reddit_posts").fetchone()[0] == 2
     assert conn.execute("SELECT COUNT(*) FROM reddit_mentions").fetchone()[0] == 3
     assert [p["id"] for p in reddit.top_posts(conn, NOW)] == ["t3_aaa", "t3_bbb"]
     assert reddit.top_posts(conn, NOW + timedelta(days=3)) == []
     # second run: nothing new; ranks refreshed
-    st2 = rc.collect(conn, rcfg, ["MSFT"], NOW + timedelta(hours=4), lambda url: httpx.Response(200, text=ATOM),
+    st2 = rc.collect(conn, rcfg, ["COST"], NOW + timedelta(hours=4), lambda url: httpx.Response(200, text=ATOM),
                      sleep=lambda s: None)
     assert st2["new"] == 0
     # baseline: one day of history → "Not enough history"
-    c = {r["ticker"]: r for r in reddit.mention_counts(conn, ["MSFT", "AAPL", "F", "TSLA"], NOW)}
-    assert set(c) == {"MSFT", "AAPL", "F"} and c["MSFT"]["n24"] == 1 and c["MSFT"]["base"] is None
+    c = {r["ticker"]: r for r in reddit.mention_counts(conn, ["COST", "NFLX", "F", "F"], NOW)}
+    assert set(c) == {"COST", "NFLX", "F"} and c["COST"]["n24"] == 1 and c["COST"]["base"] is None
     assert [p["id"] for p in reddit.ticker_posts(conn, "F", NOW)] == ["t3_bbb"]
 
 
 def test_mention_baseline_and_prompt(conn):
     old = NOW - timedelta(days=5)
     posts = [rc.Post(f"t3_o{i}", "stocks", f"old {i}", f"https://r/{i}", None, db._ts(old - timedelta(hours=i)),
-                     tickers=["MSFT"]) for i in range(4)]
+                     tickers=["COST"]) for i in range(4)]
     posts += [rc.Post(f"t3_n{i}", "stocks", f"new {i}", f"https://r/n{i}", None, db._ts(NOW - timedelta(hours=i + 1)),
-                      tickers=["MSFT"]) for i in range(3)]
+                      tickers=["COST"]) for i in range(3)]
     rc.store(conn, posts, NOW - timedelta(days=6))
-    [c] = reddit.mention_counts(conn, ["MSFT"], NOW)
+    [c] = reddit.mention_counts(conn, ["COST"], NOW)
     assert c["n24"] == 3 and c["days"] == 5 and c["base"] == pytest.approx(0.8) and c["ratio"] == pytest.approx(3.75)
-    lines = reddit.for_prompt(conn, ["MSFT"], NOW)
-    assert any("MSFT: 3 posts (prior 5-day avg 0.8, ×3.8)" in ln for ln in lines)
+    lines = reddit.for_prompt(conn, ["COST"], NOW)
+    assert any("COST: 3 posts (prior 5-day avg 0.8, ×3.8)" in ln for ln in lines)
     assert reddit.for_prompt(conn, [], NOW - timedelta(days=30)) == ["- No data yet"]
 
 
@@ -270,7 +270,7 @@ def test_reddit_job_fails_only_when_all_feeds_fail(conn):
     def blocked(url):
         raise httpx.HTTPStatusError("403", request=req, response=httpx.Response(403, request=req))
 
-    cfg = Config(holdings=["MSFT"], watchlist=[], reddit={"feeds": [{"name": "top", "path": "r/x/.rss"}]})
+    cfg = Config(holdings=["COST"], watchlist=[], reddit={"feeds": [{"name": "top", "path": "r/x/.rss"}]})
     with pytest.raises(RuntimeError, match="all reddit feeds failed"):
         jobs.reddit_job(conn, cfg, NOW, blocked, sleep=lambda s: None)
     out = jobs.reddit_job(conn, cfg, NOW, lambda url: httpx.Response(200, text=ATOM), sleep=lambda s: None)
@@ -289,7 +289,7 @@ def test_reddit_due():
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: [F]\n")
+    (tmp_path / "watchlist.yaml").write_text("holdings: [COST]\nwatchlist: [F]\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
     (tmp_path / "macro.yaml").write_text(
         "fred: {ICSA: Initial jobless claims, NFCI: Chicago Fed financial conditions, DGS10: 10Y Treasury}\n"
@@ -303,7 +303,7 @@ def client(tmp_path, monkeypatch):
     _obs(c, "DGS10", [("2026-11-09", 4.82), ("2026-11-10", 4.90)])
     now = datetime.now(timezone.utc)
     store_markets(c, _ladder("KXCPIYOY-26NOV", "2099-12-10T13:30:00Z", [("3.6", 0.95), ("3.7", 0.7), ("3.8", 0.2)]), now)
-    rc.collect(c, {"feeds": [{"name": "top", "path": "r/x/.rss"}], "min_interval_s": 0}, ["MSFT", "F"], now,
+    rc.collect(c, {"feeds": [{"name": "top", "path": "r/x/.rss"}], "min_interval_s": 0}, ["COST", "F"], now,
                lambda url: httpx.Response(200, text=ATOM.replace("2026-11-11T08:00:00", f"{now - timedelta(hours=1):%Y-%m-%dT%H:%M:%S}")
                                           .replace("2026-11-10T20:00:00", f"{now - timedelta(hours=2):%Y-%m-%dT%H:%M:%S}")),
                sleep=lambda s: None)
@@ -325,7 +325,7 @@ def test_macro_page_groups_and_econ(client):
 def test_reddit_page_and_agent_context(client, tmp_path):
     r = client.get("/reddit")
     assert r.status_code == 200
-    assert "Big tech earnings" in r.text and "noisy" in r.text and 'href="/t/MSFT"' in r.text
+    assert "Big tech earnings" in r.text and "noisy" in r.text and 'href="/t/COST"' in r.text
     assert 'href="/reddit"' in r.text  # nav entry
     from radar import agent
     from radar.config import load_config

@@ -14,7 +14,7 @@ MANUAL_SECTOR_OVERRIDE = {}
 def get_latest_price_stooq(ticker: str) -> float:
     """
     Get the latest US stock close from Stooq (Close of the most recent trading day).
-    AAPL -> aapl.us
+    KO -> ko.us
     """
     symbol = ticker.lower() + ".us"
     url = f"https://stooq.com/q/d/l/?s={symbol}&i=d"

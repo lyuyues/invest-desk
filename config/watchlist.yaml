@@ -1,14 +1,14 @@
 # Holdings: tightest thresholds (one-day ±5% 🟡 / ±8% 🔴). You can also add/remove them directly on the “Overview” or “Earnings” page.
 holdings:
-  - MSFT
-  - AAPL
+  - COST
+  - KO
 
 # Watchlist: one-day ±8% 🟡
 watchlist:
-  - NVDA
-  - GOOGL
-  - TSM
+  - AMD
+  - META
+  - ASML
 
 # Optional price levels: push 🟡 when crossed (only once, at the moment of crossing)
-# Example: NVDA: {below: 150, above: 220}
+# Example: AMD: {below: 150, above: 220}
 levels: {}

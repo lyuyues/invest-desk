@@ -29,9 +29,9 @@ def test_fetch_quotes_happy_and_skip_failures():
     def factory(sym):
         return FakeTicker(sym, fail=(sym == "BAD"), info_fail=(sym == "NOPE"))
 
-    quotes = fetch_quotes(["MSFT", "BAD", "NOPE"], NOW, ticker_factory=factory)
-    assert [q.ticker for q in quotes] == ["MSFT", "NOPE"]
-    assert quotes[0] == Quote("MSFT", NOW, 410.0, 400.0, 31.5, 470.0, 350.0)
+    quotes = fetch_quotes(["COST", "BAD", "NOPE"], NOW, ticker_factory=factory)
+    assert [q.ticker for q in quotes] == ["COST", "NOPE"]
+    assert quotes[0] == Quote("COST", NOW, 410.0, 400.0, 31.5, 470.0, 350.0)
     assert quotes[1].pe is None
 
 
@@ -48,17 +48,17 @@ def test_pusher_payload():
         return FakeResp()
 
     push = make_pusher("https://ntfy.sh", "topic-x", "https://invest.example", post=post)
-    push(Fire("hu", "MSFT", "urgent", "MSFT ▼9%", "body"))
+    push(Fire("hu", "COST", "urgent", "COST ▼9%", "body"))
     push(Fire("digest", "*", "notice", "2 more", "b"))
     (url, p1), (_, p2) = calls
     assert url == "https://ntfy.sh"
-    assert p1["topic"] == "topic-x" and p1["title"] == "MSFT ▼9%" and p1["priority"] == 4
-    assert p1["click"] == "https://invest.example/t/MSFT"
+    assert p1["topic"] == "topic-x" and p1["title"] == "COST ▼9%" and p1["priority"] == 4
+    assert p1["click"] == "https://invest.example/t/COST"
     assert p2["priority"] == 3 and p2["click"] == "https://invest.example/"
 
 
 def test_cli_collect_dry_run(tmp_path, monkeypatch):
-    (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: []\n")
+    (tmp_path / "watchlist.yaml").write_text("holdings: [COST]\nwatchlist: []\n")
     (tmp_path / "rules.yaml").write_text(
         "rules:\n  - {id: hu, kind: pct_change, tier: holdings, threshold: 1, level: urgent}\n"
     )
@@ -92,10 +92,10 @@ def test_backfill_history_only_when_missing(tmp_path):
             return pd.DataFrame({"Close": [100.0, 102.0]}, index=idx)
 
     conn = db.connect(tmp_path / "b.db")
-    assert backfill_history(conn, ["MSFT"], ticker_factory=T) == 2
-    rows = db.price_history(conn, "MSFT")
+    assert backfill_history(conn, ["COST"], ticker_factory=T) == 2
+    rows = db.price_history(conn, "COST")
     assert [r["price"] for r in rows] == [100.0, 102.0] and rows[1]["prev_close"] == 100.0
-    assert backfill_history(conn, ["MSFT"], ticker_factory=T) == 0 and calls == ["MSFT"]
+    assert backfill_history(conn, ["COST"], ticker_factory=T) == 0 and calls == ["COST"]
 
 
 def test_click_paths():
@@ -103,8 +103,8 @@ def test_click_paths():
     from radar.notify import click_path
     f = lambda rid, t="*": Fire(rid, t, "notice", "x", "y")  # noqa: E731
     assert click_path(f("port:1:2026-11-12")) == "/scan/1"
-    assert click_path(f("paper:4:2026-11-12", "MSFT")) == "/paper/4"
+    assert click_path(f("paper:4:2026-11-12", "COST")) == "/paper/4"
     assert click_path(f("weekly:7")) == "/reports/7"
-    assert click_path(f("enote:MSFT:2026-10-29", "MSFT")) == "/earnings#e-MSFT-2026-10-29"
-    assert click_path(f("price-drop", "MSFT")) == "/t/MSFT"
+    assert click_path(f("enote:COST:2026-10-29", "COST")) == "/earnings#e-COST-2026-10-29"
+    assert click_path(f("price-drop", "COST")) == "/t/COST"
     assert click_path(f("heartbeat:scan", "SYSTEM")) == "/"

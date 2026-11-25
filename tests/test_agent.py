@@ -17,7 +17,7 @@ resumed = "--resume" in sys.argv
 def out(o): print(json.dumps(o), flush=True)
 out({"type": "system", "subtype": "init", "session_id": "11111111-2222-3333-4444-555555555555"})
 out({"type": "stream_event", "event": {"type": "content_block_start", "content_block": {"type": "server_tool_use", "name": "WebSearch"}}})
-for piece in ["Saw", " MSFT" if "MSFT" in prompt else "?", " resumed" if resumed else "", " first" if "Dashboard data snapshot" in prompt else ""]:
+for piece in ["Saw", " COST" if "COST" in prompt else "?", " resumed" if resumed else "", " first" if "Dashboard data snapshot" in prompt else ""]:
     out({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
 out({"type": "result", "subtype": "success", "is_error": False, "session_id": "11111111-2222-3333-4444-555555555555", "result": "x"})
 '''
@@ -25,7 +25,7 @@ out({"type": "result", "subtype": "success", "is_error": False, "session_id": "1
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: [NVDA]\n")
+    (tmp_path / "watchlist.yaml").write_text("holdings: [COST]\nwatchlist: [QCOM]\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
     fake = tmp_path / "fake_claude.py"
     fake.write_text(FAKE)
@@ -33,7 +33,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "a.db"))
     monkeypatch.setenv("AGENT_CMD", f"{sys.executable} {fake}")
     conn = db.connect(tmp_path / "a.db")
-    db.insert_quote(conn, Quote("MSFT", NOW, 500, 490, 30.0, 560, 380))
+    db.insert_quote(conn, Quote("COST", NOW, 500, 490, 30.0, 560, 380))
     conn.commit()
     conn.close()
     from web.app import app
@@ -45,12 +45,12 @@ def _events(text):
 
 
 def test_agent_stream_first_turn_and_resume(client):
-    r = client.post("/agent", json={"q": "How is MSFT doing", "page": "/t/MSFT"})
+    r = client.post("/agent", json={"q": "How is COST doing", "page": "/t/COST"})
     evs = _events(r.text)
     assert evs[0] == {"t": "session", "v": "11111111-2222-3333-4444-555555555555"}
     assert {"t": "tool", "v": "WebSearch"} in evs
     text = "".join(e["v"] for e in evs if e["t"] == "text")
-    assert text == "Saw MSFT first"
+    assert text == "Saw COST first"
     assert evs[-1]["t"] == "done"
 
     r = client.post("/agent", json={"q": "Tell me more", "sid": "11111111-2222-3333-4444-555555555555", "page": "/"})
@@ -78,6 +78,6 @@ def test_parse_event_ignores_noise():
 
 def test_page_context_ticker(tmp_path):
     conn = db.connect(tmp_path / "p.db")
-    db.insert_quote(conn, Quote("NVDA", NOW, 180, 175, 40.0, 210, 120))
-    assert "stock page for NVDA" in agent.page_context(conn, "/t/nvda") and "180.00" in agent.page_context(conn, "/t/nvda")
+    db.insert_quote(conn, Quote("QCOM", NOW, 180, 175, 40.0, 210, 120))
+    assert "stock page for QCOM" in agent.page_context(conn, "/t/qcom") and "180.00" in agent.page_context(conn, "/t/qcom")
     assert "Macro" in agent.page_context(conn, "/macro")

@@ -11,7 +11,7 @@ NOW = datetime(2026, 11, 10, 14, 25, tzinfo=timezone.utc)  # 09:25 New York
 
 
 def cfg():
-    return SimpleNamespace(all_tickers=["MSFT", "AMAT"], tier_of=lambda t: "holdings" if t == "MSFT" else "watchlist",
+    return SimpleNamespace(all_tickers=["COST", "AMAT"], tier_of=lambda t: "holdings" if t == "COST" else "watchlist",
                            tz="America/Los_Angeles", macro={})
 
 
@@ -34,10 +34,10 @@ def test_fetch_premarket_uses_last_completed_close():
 def test_bundle_and_generate(tmp_path):
     conn = db.connect(tmp_path / "d.db")
     conn.execute("INSERT INTO earnings VALUES ('AMAT','2026-11-12',4.06,NULL,NULL)")
-    pre = {"MSFT": {"pre": 510.0, "prev": 500.0}, "AMAT": {"pre": None, "prev": 200.0}}
+    pre = {"COST": {"pre": 510.0, "prev": 500.0}, "AMAT": {"pre": None, "prev": 200.0}}
     gauges = {"ES=F": {"last": 6000.0, "prev": 6060.0}}
     b = daily.build_bundle(conn, cfg(), NOW, pre, gauges)
-    for s in ["| MSFT | Holdings | 500.00 | 510.00 | +2.0% |", "no pre-market trades", "S&P 500 futures", "-0.99%",
+    for s in ["| COST | Holdings | 500.00 | 510.00 | +2.0% |", "no pre-market trades", "S&P 500 futures", "-0.99%",
               "Upcoming 2026-11-12", "09:25 New York time"]:
         assert s in b, s
     rid, ok = daily.generate(conn, cfg(), NOW, lambda p: "# Daily brief\nOne-liner", pre, gauges)
@@ -59,7 +59,7 @@ def test_kind_migration(tmp_path):
 
 @pytest.fixture
 def web(tmp_path, monkeypatch):
-    (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: []\n")
+    (tmp_path / "watchlist.yaml").write_text("holdings: [COST]\nwatchlist: []\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
     (tmp_path / "macro.yaml").write_text("fred: {}\n")
     monkeypatch.setenv("RADAR_CONFIG_DIR", str(tmp_path))

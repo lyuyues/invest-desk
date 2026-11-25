@@ -28,10 +28,10 @@ def test_run_job_records_success_and_failure(conn):
 
 
 def test_prices_job_raises_when_nothing_fetched(conn):
-    cfg = Config(holdings=["MSFT"], watchlist=[])
+    cfg = Config(holdings=["COST"], watchlist=[])
     with pytest.raises(RuntimeError):
         jobs.prices(conn, cfg, NOW, lambda f: None, fetch=lambda t, n: [])
-    out = jobs.prices(conn, cfg, NOW, lambda f: None, fetch=lambda t, n: [Quote("MSFT", n, 1.0, 1.0)])
+    out = jobs.prices(conn, cfg, NOW, lambda f: None, fetch=lambda t, n: [Quote("COST", n, 1.0, 1.0)])
     assert out.startswith("quotes=1/1")
 
 
@@ -47,15 +47,15 @@ def test_heartbeat(conn):
 
 
 def test_cluster_purchases_only_for_new_buys(conn):
-    conn.execute("INSERT INTO insider_tx VALUES ('a1',0,'MSFT','A','CEO','2026-11-01','P',10,100,1000)")
-    conn.execute("INSERT INTO insider_tx VALUES ('a2',0,'MSFT','B','CFO','2026-11-04','P',10,100,1000)")
+    conn.execute("INSERT INTO insider_tx VALUES ('a1',0,'COST','A','CEO','2026-11-01','P',10,100,1000)")
+    conn.execute("INSERT INTO insider_tx VALUES ('a2',0,'COST','B','CFO','2026-11-04','P',10,100,1000)")
     conn.commit()
-    cfg = Config(holdings=["MSFT"], watchlist=[],
+    cfg = Config(holdings=["COST"], watchlist=[],
                  rules=[{"id": "ic", "kind": "insider_cluster", "days": 30, "min_insiders": 2, "level": "urgent"}])
 
     class T:
-        ticker, code = "MSFT", "P"
+        ticker, code = "COST", "P"
 
     assert jobs.cluster_purchases(conn, cfg, NOW.date(), []) == {}
     got = jobs.cluster_purchases(conn, cfg, NOW.date(), [T()])
-    assert {r["owner"] for r in got["MSFT"]} == {"A", "B"}
+    assert {r["owner"] for r in got["COST"]} == {"A", "B"}

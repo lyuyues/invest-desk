@@ -8,7 +8,7 @@
 # Then it projects 4 years of FCF and discounts them plus a terminal value.
 #
 # Usage example:
-#   python dcf_builder.py --ticker GOOGL --required 0.07 --perp 0.025 --avg-years 5
+#   python dcf_builder.py --ticker KO --required 0.07 --perp 0.025 --avg-years 5
 #
 # Outputs in current folder:
 #   <YEAR>_dcf_<TICKER>.csv            # historical table
@@ -115,7 +115,7 @@ REVENUE_TAGS = [
         "InterestAndDividendIncomeOperating",
         "PremiumsEarned",
         "NetInvestmentIncome",
-        "Revenue",                             # ifrs-full (20-F/40-F filers, e.g. TSM)
+        "Revenue",                             # ifrs-full (20-F/40-F filers, e.g. Taiwanese ADRs)
         "RevenueFromContractsWithCustomers",   # ifrs-full alt tag
         YF_REVENUE,
 ]
@@ -293,10 +293,10 @@ YFINANCE_FIELD_MAP = {
     "stockholders_equity": ("balance",  "Stockholders Equity",          1, "USD", YF_STOCKHOLDERS_EQUITY),
     # NOTE: "shares_outstanding" is deliberately NOT mapped here. yfinance's
     # balance-sheet "Ordinary Shares Number" is on an ordinary-share basis
-    # (e.g. ~25.9B for TSM), while the rest of this script — and the
+    # (e.g. ~25.9B ordinary shares for a Taiwanese ADR), while the rest of this script — and the
     # existing SEC-has-no-shares-data fallback a few hundred lines down in
     # build_dcf() — uses info()["sharesOutstanding"], which for ADRs is on
-    # the traded-security (ADS) basis (~5.19B for TSM, since 1 ADS = 5
+    # the traded-security (ADS) basis (~5.19B ADS there, since 1 ADS = 5
     # ordinary shares). Mapping it here would populate a non-empty (but
     # wrong-basis, ~5x off) series that silently short-circuits that
     # already-correct fallback.
@@ -441,8 +441,8 @@ def fetch_yfinance_supplement(ticker: str) -> dict:
     yfinance's financial statements, for tickers whose SEC XBRL has no
     us-gaap data (foreign private issuers reporting under IFRS).
 
-    Converts to USD when the filer reports in another currency (e.g. TSM
-    reports in TWD) using the historical <CUR>USD=X rate as of each period
+    Converts to USD when the filer reports in another currency (e.g. a Taiwanese
+    filer reports in TWD) using the historical <CUR>USD=X rate as of each period
     end, so revenue growth / margins reflect real trends rather than FX
     drift, and so figures are comparable to the USD-quoted share price used
     elsewhere in this script.
@@ -574,7 +574,7 @@ def backfill_ifrs_full_usd(facts: dict) -> None:
 
     The USD translation is typically only present for years covered by the
     *current* filing's face financials — older comparative years carried over
-    from a prior filing (e.g. TSM's FY2016 figures, which only appear as the
+    from a prior filing (e.g. a 20-F filer's FY2016 figures, which only appear as the
     prior-year column in the FY2017 20-F) exist in SEC's data solely in the
     local currency. This backfills those years by converting the
     local-currency value to USD using the historical spot FX rate as of the
@@ -1063,7 +1063,7 @@ def _quarterly_series_from_tags(
                             # Use midpoint to determine calendar quarter
                             # (avoids mis-labeling when fiscal quarter
                             #  end date spills into the next calendar quarter,
-                            #  e.g. AAPL Apr 2 – Jul 1 → midpoint May → Q2)
+                            #  e.g. a fiscal quarter Apr 2 – Jul 1 → midpoint May → Q2)
                             from datetime import timedelta
                             mid = s_dt + timedelta(days=days // 2)
                             q = (mid.month - 1) // 3 + 1
@@ -1297,7 +1297,7 @@ def fetch_analyst_revenue(ticker: str) -> List[Tuple[int, float]]:
             return []
 
         # yfinance reports analyst estimates in the filer's reporting
-        # currency (e.g. TWD for TSM), not USD — convert so this is
+        # currency (e.g. TWD for a Taiwanese filer), not USD — convert so this is
         # comparable to the (already-USD) historical revenue series.
         currency = (tk.info or {}).get("financialCurrency") or "USD"
         fx = _yfinance_fx_to_usd(currency, [pd.Timestamp.now()])
@@ -2275,7 +2275,7 @@ def build_quarterly_table(ticker: str, num_quarters: int = 10) -> pd.DataFrame:
     return df
 
 
-#python dcf_builder.py --ticker GOOGL --required 0.07 --perp 0.025 --avg-years 5
+#python dcf_builder.py --ticker KO --required 0.07 --perp 0.025 --avg-years 5
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ticker", required=True)
@@ -2381,7 +2381,7 @@ import json
 import pandas as pd
 #   Entry function for direct calls
 def run_dcf_once(
-    ticker: str = "GOOGL",
+    ticker: str = "KO",
     required_return: float = 0.07,
     perpetual_growth: float = 0.025,
     projection_years: int = 4,

@@ -111,7 +111,7 @@ def market_shares(ticker: str) -> float | None:
 
 
 def fix_share_units(auto: dict, implied: float | None) -> str | None:
-    """SEC share counts can be in another unit than the quoted share (e.g. BRK: class-A equivalents).
+    """SEC share counts can be in another unit than the quoted share (e.g. class-A equivalents for a dual-class stock).
     If they differ by >3×, use market-implied shares so fair value is per quoted share."""
     sec = auto.get("shares")
     if not implied or not sec or 1 / 3 < sec / implied < 3:

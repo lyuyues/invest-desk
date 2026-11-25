@@ -13,12 +13,12 @@ NOW = datetime(2026, 11, 8, 3, 0, tzinfo=timezone.utc)
 @pytest.fixture
 def conn(tmp_path):
     c = db.connect(tmp_path / "w.db")
-    db.insert_quote(c, Quote("MSFT", NOW - timedelta(days=8), 500, 500, 30, 560, 350))
-    db.insert_quote(c, Quote("MSFT", NOW, 450, 460, 28, 560, 350))
-    db.record_alert(c, Fire("hu", "MSFT", "urgent", "MSFT ▼9%", "body"), NOW - timedelta(days=1), True)
-    c.execute("INSERT INTO filings VALUES ('a1','MSFT',1,'8-K','2026-11-05','5.02,9.01','http://x')")
-    c.execute("INSERT INTO insider_tx VALUES ('a2',0,'MSFT','Doe','CFO','2026-11-04','P',10,100,1000)")
-    c.execute("INSERT INTO earnings VALUES ('MSFT','2026-11-12',4.9,NULL,NULL)")
+    db.insert_quote(c, Quote("COST", NOW - timedelta(days=8), 500, 500, 30, 560, 350))
+    db.insert_quote(c, Quote("COST", NOW, 450, 460, 28, 560, 350))
+    db.record_alert(c, Fire("hu", "COST", "urgent", "COST ▼9%", "body"), NOW - timedelta(days=1), True)
+    c.execute("INSERT INTO filings VALUES ('a1','COST',1,'8-K','2026-11-05','5.02,9.01','http://x')")
+    c.execute("INSERT INTO insider_tx VALUES ('a2',0,'COST','Doe','CFO','2026-11-04','P',10,100,1000)")
+    c.execute("INSERT INTO earnings VALUES ('COST','2026-11-12',4.9,NULL,NULL)")
     c.executemany("INSERT INTO macro_obs VALUES (?,?,?)",
                   [("DFEDTARU", "2026-10-20", 4.0), ("DFEDTARU", "2026-11-05", 3.75), ("DGS10", "2026-10-29", 4.6),
                    ("DGS10", "2026-11-06", 4.84)])
@@ -37,7 +37,7 @@ def conn(tmp_path):
 
 
 def cfg():
-    return Config(holdings=["MSFT"], watchlist=[], macro={"fred": {"DGS10": "10Y Treasury", "DFEDTARU": "Rate ceiling"}})
+    return Config(holdings=["COST"], watchlist=[], macro={"fred": {"DGS10": "10Y Treasury", "DFEDTARU": "Rate ceiling"}})
 
 
 def test_fed_path_and_gap(conn):
@@ -55,13 +55,13 @@ def test_market_changes_week(conn):
 
 
 def test_week_moves(conn):
-    [m] = views.week_moves(conn, ["MSFT"], NOW)
+    [m] = views.week_moves(conn, ["COST"], NOW)
     assert m["week_pct"] == pytest.approx(-10)
 
 
 def test_bundle_contains_sections(conn):
     b = weekly.build_bundle(conn, cfg(), NOW)
-    for s in ["MSFT", "-10.0%", "Officer/director change", "Buy 1 transaction(s)", "Upcoming 2026-11-12", "10Y Treasury",
+    for s in ["COST", "-10.0%", "Officer/director change", "Buy 1 transaction(s)", "Upcoming 2026-11-12", "10Y Treasury",
               "Gap +0bp", "Above 3.50%", "Thesis summaries"]:
         assert s in b, s
 
@@ -81,13 +81,13 @@ def test_generate_success_and_fallback(conn):
 def test_theses_matching(tmp_path, conn):
     d = tmp_path / "theses"
     d.mkdir()
-    (d / "MSFT-2026-cloud.md").write_text("cloud thesis")
-    (d / "NVDA-2024.md").write_text("nvda")
+    (d / "COST-2026-cloud.md").write_text("cloud thesis")
+    (d / "QCOM-2024.md").write_text("qcom")
     (d / "_TEMPLATE.md").write_text("tpl")
     c = cfg()
     c.theses_dir = d
     b = weekly.build_bundle(conn, c, NOW)
-    assert "cloud thesis" in b and "nvda" not in b and "tpl" not in b
+    assert "cloud thesis" in b and "qcom" not in b and "tpl" not in b
 
 
 def test_week_moves_none_without_history(tmp_path):

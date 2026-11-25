@@ -60,7 +60,7 @@ class Resp:
 
 def fake_get(url):
     if url.endswith("company_tickers.json"):
-        return Resp({"0": {"cik_str": 789019, "ticker": "MSFT", "title": "MICROSOFT CORP"}})
+        return Resp({"0": {"cik_str": 789019, "ticker": "COST", "title": "MICROSOFT CORP"}})
     if "submissions" in url:
         return Resp(SUBMISSIONS)
     if url.endswith("form4.xml"):
@@ -78,19 +78,19 @@ def conn(tmp_path):
 # ---- EDGAR ----
 
 def test_parse_form4():
-    txs = edgar.parse_form4(FORM4, "acc", "MSFT")
+    txs = edgar.parse_form4(FORM4, "acc", "COST")
     assert [t.code for t in txs] == ["P", "F"]
     assert txs[0].owner == "Doe Jane" and txs[0].title == "CFO"
     assert txs[0].value == pytest.approx(1_252_500)
 
 
 def test_collect_dedupes_and_strips_xsl(conn):
-    new_8k, new_tx = edgar.collect(conn, ["MSFT", "SPY"], fake_get, TODAY, lookback_days=30)
+    new_8k, new_tx = edgar.collect(conn, ["COST", "SPY"], fake_get, TODAY, lookback_days=30)
     assert [f.accession for f in new_8k] == ["0001-26-000001"]
     assert len(new_tx) == 2
     url = conn.execute("SELECT url FROM filings WHERE form='4'").fetchone()["url"]
     assert url.endswith("/000126000002/form4.xml")
-    again = edgar.collect(conn, ["MSFT"], fake_get, TODAY)
+    again = edgar.collect(conn, ["COST"], fake_get, TODAY)
     assert again == ([], [])
 
 
@@ -100,14 +100,14 @@ def test_item_labels():
 
 # ---- event rules ----
 
-TIER = lambda t: "holdings" if t == "MSFT" else "watchlist"  # noqa: E731
+TIER = lambda t: "holdings" if t == "COST" else "watchlist"  # noqa: E731
 
 
 def test_filing_fires_item_filter_and_age():
     rule = {"id": "8k", "kind": "filing_8k", "tier": "holdings", "items": ["5.02"], "level": "urgent"}
-    f_new = edgar.Filing("a1", "MSFT", 1, "8-K", "2026-11-05", "5.02", "u")
-    f_old = edgar.Filing("a2", "MSFT", 1, "8-K", "2026-10-01", "5.02", "u")
-    f_other = edgar.Filing("a3", "MSFT", 1, "8-K", "2026-11-05", "8.01", "u")
+    f_new = edgar.Filing("a1", "COST", 1, "8-K", "2026-11-05", "5.02", "u")
+    f_old = edgar.Filing("a2", "COST", 1, "8-K", "2026-10-01", "5.02", "u")
+    f_other = edgar.Filing("a3", "COST", 1, "8-K", "2026-11-05", "8.01", "u")
     fires = events.filing_fires([rule], [f_new, f_old, f_other], TIER, TODAY, edgar.item_labels)
     assert [f.rule_id for f in fires] == ["8k:a1"]
     assert fires[0].level == "urgent" and "Officer" in fires[0].title
@@ -115,24 +115,24 @@ def test_filing_fires_item_filter_and_age():
 
 def test_insider_buy_only_purchases_over_min():
     rule = {"id": "ib", "kind": "insider_buy", "min_value": 1_000_000, "level": "notice"}
-    txs = edgar.parse_form4(FORM4, "acc", "MSFT")
+    txs = edgar.parse_form4(FORM4, "acc", "COST")
     fires = events.insider_buy_fires([rule], txs, TIER, TODAY)
     assert len(fires) == 1 and "$1.25M" in fires[0].title
 
 
 def test_insider_cluster():
     rule = {"id": "ic", "kind": "insider_cluster", "min_insiders": 2, "days": 30, "level": "urgent"}
-    buys = {"MSFT": [{"owner": "A", "accession": "x1", "value": 1e5},
+    buys = {"COST": [{"owner": "A", "accession": "x1", "value": 1e5},
                      {"owner": "B", "accession": "x2", "value": 2e5}],
-            "NVDA": [{"owner": "A", "accession": "y1", "value": 1e5}]}
+            "QCOM": [{"owner": "A", "accession": "y1", "value": 1e5}]}
     fires = events.insider_cluster_fires([rule], buys, TIER)
-    assert [(f.ticker, f.rule_id) for f in fires] == [("MSFT", "ic:x2")]
+    assert [(f.ticker, f.rule_id) for f in fires] == [("COST", "ic:x2")]
 
 
 def test_earnings_fires():
     rule = {"id": "er", "kind": "earnings", "tier": "all", "level": "notice"}
-    rows = [{"ticker": "MSFT", "date": "2026-11-05", "eps_est": 4.72, "eps_actual": 4.89, "surprise_pct": 3.59},
-            {"ticker": "MSFT", "date": "2026-07-29", "eps_est": 4.2, "eps_actual": 4.7, "surprise_pct": 11.8}]
+    rows = [{"ticker": "COST", "date": "2026-11-05", "eps_est": 4.72, "eps_actual": 4.89, "surprise_pct": 3.59},
+            {"ticker": "COST", "date": "2026-07-29", "eps_est": 4.2, "eps_actual": 4.7, "surprise_pct": 11.8}]
     fires = events.earnings_fires([rule], rows, TIER, TODAY)
     assert len(fires) == 1 and "Beat +3.6%" in fires[0].title
 
@@ -202,7 +202,7 @@ def test_implied_rate():
 
 
 def test_store_earnings_reports_newly_known(conn):
-    r = {"ticker": "MSFT", "date": "2027-01-27", "eps_est": 4.86, "eps_actual": None, "surprise_pct": None}
+    r = {"ticker": "COST", "date": "2027-01-27", "eps_est": 4.86, "eps_actual": None, "surprise_pct": None}
     assert macro.store_earnings(conn, [r]) == []
     r2 = dict(r, eps_actual=5.0, surprise_pct=2.9)
     assert macro.store_earnings(conn, [r2]) == [r2]
@@ -212,7 +212,7 @@ def test_store_earnings_reports_newly_known(conn):
 def test_parse_form4_skips_other_issuer():
     other = FORM4.replace("<ownershipDocument>", "<ownershipDocument><issuer><issuerCik>0000797468</issuerCik></issuer>", 1)
     assert "issuerCik" in other
-    assert edgar.parse_form4(other, "acc", "BRK-B", 1067983) == []
+    assert edgar.parse_form4(other, "acc", "BF-B", 1067983) == []
     assert len(edgar.parse_form4(other, "acc", "OXY", 797468)) == 2
 
 
@@ -220,7 +220,7 @@ def test_filing_summaries(conn):
     from datetime import datetime, timezone
     from radar import filing_notes
     from types import SimpleNamespace
-    conn.execute("INSERT INTO filings VALUES ('a1','MSFT',1,'8-K','2026-11-05','5.02','https://sec/d/x/main.htm')")
+    conn.execute("INSERT INTO filings VALUES ('a1','COST',1,'8-K','2026-11-05','5.02','https://sec/d/x/main.htm')")
     conn.commit()
     pages = {"https://sec/d/x/main.htm": "<html><p>Item 5.02 &amp; CFO <b>resigned</b></p><script>x</script></html>",
              "https://sec/d/x/index.json": {"directory": {"item": [{"name": "main.htm"}, {"name": "ex99-1.htm"}, {"name": "googexhibit991q3.htm"}]}},

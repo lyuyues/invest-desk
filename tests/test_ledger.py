@@ -22,7 +22,7 @@ def _load(extra=()):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    (tmp_path / "watchlist.yaml").write_text("holdings: [MSFT]\nwatchlist: []\n")
+    (tmp_path / "watchlist.yaml").write_text("holdings: [COST]\nwatchlist: []\n")
     (tmp_path / "rules.yaml").write_text("rules: []\n")
     monkeypatch.setenv("RADAR_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "w.db"))

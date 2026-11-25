@@ -1,6 +1,6 @@
 # Reddit: public RSS (no account / API key needed). Crowd sentiment, very noisy, for reference only.
 # Logged-out RSS is rate-limited to about 1 request/minute, so we only pull a few"multi-subreddit" listings; search RSS (search.rss) returns 403 on the server,
-# so ticker mentions = matching tracked tickers in these listings’ titles + bodies ($NVDA or a standalone uppercase NVDA).
+# so ticker mentions = matching tracked tickers in these listings’ titles + bodies ($KO or a standalone uppercase KO).
 feeds:
   # Macro / market: top posts of the day from a few subreddits
   - {name: top, path: "r/economics+investing+stocks+StockMarket+wallstreetbets/top/.rss?t=day&limit=100"}
@@ -10,5 +10,5 @@ every_hours: 4          # scheduled inside the web process (web/scheduler.py)
 min_interval_s: 61      # interval between requests (respects x-ratelimit-reset)
 # these tickers collide with common English words / abbreviations; only match with a $ prefix (tickers of ≤2 letters already require the $ prefix)
 require_dollar: []
-# Extra aliases (case-insensitive whole-word match), e.g. {GOOGL: [Google, Alphabet]}
+# Extra aliases (case-insensitive whole-word match), e.g. {META: [Facebook, Instagram]}
 aliases: {}

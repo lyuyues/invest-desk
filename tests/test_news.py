@@ -18,7 +18,7 @@ def fmt(dt):
 
 
 def cfg(tmp_path):
-    return Config(holdings=["NVDA"], watchlist=["MSFT"], db_path=tmp_path / "n.db", quiet_start="23:00", quiet_end="07:00",
+    return Config(holdings=["QCOM"], watchlist=["COST"], db_path=tmp_path / "n.db", quiet_start="23:00", quiet_end="07:00",
                   tz="UTC", news={"people": ["Scott Bessent"], "topics": [], "max_age_min": 120, "push_score": 2})
 
 
@@ -37,9 +37,9 @@ def test_parse_and_dedupe_across_outlets(tmp_path):
 
 def test_feed_urls():
     urls = news.feed_urls({"people": ["Scott Bessent", "Jensen Huang"], "topics": ["tariff"],
-                           "feeds": [{"name": "Fed", "url": "https://fed/rss"}]}, ["NVDA", "MSFT"])
+                           "feeds": [{"name": "Fed", "url": "https://fed/rss"}]}, ["QCOM", "COST"])
     assert "%22Scott+Bessent%22+OR+%22Jensen+Huang%22+when%3A1h" in urls[0][1]
-    assert urls[2] == ("Yahoo Finance", "https://feeds.finance.yahoo.com/rss/2.0/headline?s=NVDA,MSFT&region=US&lang=en-US")
+    assert urls[2] == ("Yahoo Finance", "https://feeds.finance.yahoo.com/rss/2.0/headline?s=QCOM,COST&region=US&lang=en-US")
     assert urls[-1] == ("Fed", "https://fed/rss")
 
 
@@ -54,15 +54,15 @@ def test_run_job_judges_and_pushes(tmp_path):
         prompts.append(p)
         return "OK:\n" + json.dumps([
             {"i": 0, "score": 1, "tickers": [], "direction": "unclear", "why": "gossip"},
-            {"i": 1, "score": 3, "tickers": ["nvda"], "direction": "positive", "why": "Treasury Secretary hints chip sales to China may resume"}])
+            {"i": 1, "score": 3, "tickers": ["qcom"], "direction": "positive", "why": "Treasury Secretary hints chip sales to China may resume"}])
 
     out = news.run_job(conn, c, NOW, pushed.append, runner, fetch=lambda url: feed,
-                       quotes=lambda ts: "NVDA 180.00 (+2.1%)")
+                       quotes=lambda ts: "QCOM 180.00 (+2.1%)")
     assert "new=2" in out and "pushed=1" in out
-    assert "NVDA" in prompts[0] and "Bessent signals" in prompts[0]
+    assert "QCOM" in prompts[0] and "Bessent signals" in prompts[0]
     [f] = pushed
-    assert f.level == "urgent" and f.ticker == "NVDA" and f.rule_id.startswith("news:")
-    assert "Treasury Secretary hints" in f.title and "NVDA 180.00" in f.body and "Bloomberg" in f.body
+    assert f.level == "urgent" and f.ticker == "QCOM" and f.rule_id.startswith("news:")
+    assert "Treasury Secretary hints" in f.title and "QCOM 180.00" in f.body and "Bloomberg" in f.body
     # nothing new next run → no second Claude call, no repeat push
     news.run_job(conn, c, NOW + timedelta(minutes=3), pushed.append, runner, fetch=lambda url: feed)
     assert len(prompts) == 1 and len(pushed) == 1
@@ -75,10 +75,10 @@ def test_notice_waits_for_quiet_hours_but_urgent_does_not(tmp_path):
     night = datetime(2026, 11, 24, 23, 30, tzinfo=timezone.utc)
     feed = rss(("A", fmt(night), "X"), ("B", fmt(night), "Y"))
     pushed = []
-    runner = lambda p: json.dumps([{"i": 0, "score": 2, "tickers": ["MSFT"], "why": "a"},  # noqa: E731
-                                   {"i": 1, "score": 3, "tickers": ["NVDA"], "why": "b"}])
+    runner = lambda p: json.dumps([{"i": 0, "score": 2, "tickers": ["COST"], "why": "a"},  # noqa: E731
+                                   {"i": 1, "score": 3, "tickers": ["QCOM"], "why": "b"}])
     news.run_job(conn, c, night, pushed.append, runner, fetch=lambda url: feed)
-    assert [f.ticker for f in pushed] == ["NVDA"]
+    assert [f.ticker for f in pushed] == ["QCOM"]
 
 
 def test_bad_json_and_dead_feed(tmp_path):
@@ -128,11 +128,11 @@ def test_news_has_its_own_daily_budget(tmp_path):
     c.news["daily_cap"] = 3
     conn = db.connect(c.db_path)
     for i in range(2):   # the shared budget is already used up by price alerts
-        db.record_alert(conn, Fire(f"p{i}", "MSFT", "notice", "move", "x"), NOW - timedelta(hours=1), pushed=True)
+        db.record_alert(conn, Fire(f"p{i}", "COST", "notice", "move", "x"), NOW - timedelta(hours=1), pushed=True)
     conn.commit()
     feed = rss(*[(f"Story {i}", fmt(NOW), "X") for i in range(5)])
     pushed = []
-    runner = lambda p: json.dumps([{"i": i, "score": 2, "tickers": ["NVDA"], "why": f"w{i}"} for i in range(5)])  # noqa: E731
+    runner = lambda p: json.dumps([{"i": i, "score": 2, "tickers": ["QCOM"], "why": f"w{i}"} for i in range(5)])  # noqa: E731
     news.run_job(conn, c, NOW, pushed.append, runner, fetch=lambda url: feed)
     assert len([f for f in pushed if f.rule_id.startswith("news:")]) == 3
 
@@ -141,8 +141,8 @@ def test_alert_links(tmp_path, monkeypatch):
     monkeypatch.setenv("RADAR_DB", str(tmp_path / "w.db"))
     from radar.models import Fire
     conn = db.connect(tmp_path / "w.db")
-    db.record_alert(conn, Fire("news:abc123", "NVDA", "urgent", "⚡ NVDA↓ test", "x", once=True), datetime.now(timezone.utc), pushed=True)
+    db.record_alert(conn, Fire("news:abc123", "QCOM", "urgent", "⚡ QCOM↓ test", "x", once=True), datetime.now(timezone.utc), pushed=True)
     conn.commit()
     from fastapi.testclient import TestClient
     from web.app import app
-    assert '<a href="/news#n-abc123"><b>⚡ NVDA↓ test</b></a>' in TestClient(app).get("/").text
+    assert '<a href="/news#n-abc123"><b>⚡ QCOM↓ test</b></a>' in TestClient(app).get("/").text

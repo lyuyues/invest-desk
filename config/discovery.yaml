@@ -11,13 +11,13 @@ screen_size: 50
 theme_max_from_high: -20
 themes:
   AI infrastructure:
-    tickers: [NVDA, AVGO, AMD, TSM, ANET, VRT, SMCI, MU, CEG, VST, ETN]
+    tickers: [AMD, ARM, ANET, VRT, SMCI, MU, CEG, VST, ETN]
   Semiconductor equipment:
     tickers: [ASML, AMAT, LRCX, KLAC, TER]
   Cloud / software:
-    tickers: [MSFT, GOOGL, AMZN, ORCL, NOW, SNOW, CRM]
+    tickers: [AMZN, ORCL, NOW, SNOW, CRM, DDOG]
   Energy / copper:
-    tickers: [XOM, CVX, FCX, SCCO, COP]
+    tickers: [CVX, FCX, SCCO, COP, EOG]
 
 # Channel 3: smart money
 openinsider: true              # Market-wide insider cluster buys (openinsider.com/latest-cluster-buys)

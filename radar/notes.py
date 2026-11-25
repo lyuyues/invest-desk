@@ -30,7 +30,7 @@ def clean(kind: str, body: str, ticker: str | None = None, title: str | None = N
         raise ValueError(f"Content too long (max {MAX_BODY} characters)")
     ticker = (ticker or "").strip().upper() or None
     if ticker and not TICKER_RE.match(ticker):
-        raise ValueError("Invalid ticker format (e.g. MSFT, BRK-B)")
+        raise ValueError("Invalid ticker format (e.g. KO, BF-B)")
     title = (title or "").strip()[:MAX_TITLE] or None
     source_url = (source_url or "").strip() or None
     if source_url and (not re.match(r"^https?://\S+$", source_url) or len(source_url) > MAX_URL):
